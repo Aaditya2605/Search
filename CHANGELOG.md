@@ -23,6 +23,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- ⌘← and ⌘→ move the caret in a text box inside a frame, such as a comment box embedded from another site, as they do in any other text box. They went back or forward in the tab's history instead, and what was typed there was lost.
 - A tab on Safari, or anywhere else whose icon is a Windows `.ico`, no longer wears a blank square. The icon was drawn off the main thread, which comes back clear for that kind of file, and the clear square was then kept.
 - ⌘⇧V in a text field pastes without formatting, as it does in Chrome — in a Google Doc too, and in a box inside another site's frame. Away from a text field it is still Paste and Go, and the page it opens is a new tab, so the one already on screen stays. About lists it as Paste and go. ([#138](https://github.com/driceroland/Search/issues/138))
 - Search can be chosen as the default web browser. macOS only lists an app there when it claims XHTML pages as well as HTML pages; Search claimed HTML, http, and https, and so never appeared in Desktop & Dock → Default web browser.
