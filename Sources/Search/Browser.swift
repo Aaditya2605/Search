@@ -1332,8 +1332,7 @@ final class Browser: NSObject, ObservableObject {
     }
 
     /// ⌘⇧V, when nothing is being typed. What is in the clipboard, if it is a
-    /// place — or a search — opened beside the page already on screen, which
-    /// stays where it is.
+    /// place — or a search — in the tab you're on.
     func pasteAndGo() {
         guard let text = NSPasteboard.general.string(forType: .string),
               let url = destination(for: text.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -1341,7 +1340,9 @@ final class Browser: NSObject, ObservableObject {
             refusals += 1
             return
         }
-        open(url, foreground: true)
+        (active ?? tabs.first)?.go(to: url)
+        editing = false
+        typed = ""
     }
 
     /// ⌘P. The system's own sheet, which is also where "save as PDF" lives.
