@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 import WebKit
 
@@ -44,7 +45,14 @@ final class Favicons {
 
     private func known(_ key: String) -> NSImage? {
         if let hit = memory[key] { return hit }
-        guard let image = NSImage(contentsOf: Favicons.file(key)) else { return nil }
+        let file = Favicons.file(key)
+        guard let image = NSImage(contentsOf: file) else { return nil }
+        // A clear square left by an earlier draw is not an icon. Drop it, so
+        // the next look at this host fetches again instead of wearing it.
+        guard Favicons.inked(image) else {
+            try? FileManager.default.removeItem(at: file)
+            return nil
+        }
         memory[key] = image
         return image
     }
@@ -151,27 +159,83 @@ final class Favicons {
 
     /// Decoded and drawn into a square off the main thread — an .ico can hold
     /// a dozen sizes and take a moment to unpack.
+    ///
+    /// Drawn with ImageIO, not `NSImage.lockFocus`. That call is AppKit
+    /// drawing, and off the main thread it comes back clear for the icons
+    /// that are a Windows icon file — Apple's, which is what a tab on Safari
+    /// wears. The clear square was then kept, so the tab stayed blank for a
+    /// week. A result with no ink is refused, and the next candidate tried.
     private static func square(_ data: Data) async -> NSImage? {
         await Task.detached(priority: .utility) { () -> NSImage? in
-            guard let image = NSImage(data: data), image.isValid,
-                  image.size.width > 0, image.size.height > 0
-            else { return nil }
-            let side: CGFloat = 64
-            let out = NSImage(size: NSSize(width: side, height: side))
-            out.lockFocus()
-            NSGraphicsContext.current?.imageInterpolation = .high
-            let scale = min(side / image.size.width, side / image.size.height)
-            let w = image.size.width * scale
-            let h = image.size.height * scale
-            image.draw(
-                in: NSRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h),
-                from: .zero,
-                operation: .sourceOver,
-                fraction: 1
-            )
-            out.unlockFocus()
-            return out
+            Favicons.raster(data)
         }.value
+    }
+
+    /// The largest frame in the file, fitted into 64 points. Nothing, when
+    /// the file isn't a picture or the picture has no ink.
+    nonisolated private static func raster(_ data: Data) -> NSImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let count = CGImageSourceGetCount(source)
+        var best: CGImage?
+        var bestArea = 0
+        for index in 0..<count {
+            guard let frame = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+            let area = frame.width * frame.height
+            if area > bestArea {
+                best = frame
+                bestArea = area
+            }
+        }
+        guard let frame = best, frame.width > 0, frame.height > 0, Favicons.inked(frame) else { return nil }
+
+        let side = 64
+        guard let ctx = CGContext(
+            data: nil, width: side, height: side,
+            bitsPerComponent: 8, bytesPerRow: side * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.interpolationQuality = .high
+        let scale = min(CGFloat(side) / CGFloat(frame.width), CGFloat(side) / CGFloat(frame.height))
+        let w = CGFloat(frame.width) * scale
+        let h = CGFloat(frame.height) * scale
+        ctx.draw(frame, in: CGRect(x: (CGFloat(side) - w) / 2, y: (CGFloat(side) - h) / 2, width: w, height: h))
+        guard let drawn = ctx.makeImage(), Favicons.inked(drawn) else { return nil }
+        return NSImage(cgImage: drawn, size: NSSize(width: side, height: side))
+    }
+
+    /// Whether a decoded picture has any ink. A clear square is what a failed
+    /// draw looks like, and it must not be kept in place of a logo.
+    nonisolated private static func inked(_ image: CGImage) -> Bool {
+        let w = image.width
+        let h = image.height
+        guard w > 0, h > 0 else { return false }
+        let row = w * 4
+        var buf = [UInt8](repeating: 0, count: row * h)
+        let drawn = buf.withUnsafeMutableBytes { raw -> Bool in
+            guard let ctx = CGContext(
+                data: raw.baseAddress, width: w, height: h,
+                bitsPerComponent: 8, bytesPerRow: row,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drawn else { return false }
+        let step = max(1, (w * h) / 2048)
+        var index = 0
+        let total = w * h
+        while index < total {
+            if buf[index * 4 + 3] > 24 { return true }
+            index += step
+        }
+        return false
+    }
+
+    private static func inked(_ image: NSImage) -> Bool {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return false }
+        return inked(cg)
     }
 
     private static func keep(_ image: NSImage, for key: String) {
@@ -234,6 +298,9 @@ final class Favicons {
         var l = links[i];
         var rel = (l.getAttribute('rel') || '').toLowerCase();
         if (rel.indexOf('icon') < 0) continue;
+        // Safari's pinned-tab mask: one flat colour, meant to be dyed. As a
+        // picture it is a black shape, or nothing at all.
+        if (rel.indexOf('mask') >= 0) continue;
         out.push({
           href: l.href,
           rel: rel,
