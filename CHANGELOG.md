@@ -24,6 +24,7 @@ in [ROADMAP.md](ROADMAP.md).
 ### Fixed
 
 - A tab on Safari, or anywhere else whose icon is a Windows `.ico`, no longer wears a blank square. The icon was drawn off the main thread, which comes back clear for that kind of file, and the clear square was then kept.
+- Search can be chosen as the default web browser. macOS only lists an app there when it claims XHTML pages as well as HTML pages; Search claimed HTML, http, and https, and so never appeared in Desktop & Dock → Default web browser.
 - The stand-in traffic lights drawn while Search is in the background are no longer redrawn each time the window changes screen or size, only when they move.
 - An empty tab no longer works the processor while it waits: the slow breath under the address field was redrawn by the app every frame, about a sixth of a core with nothing happening. The same breath now runs in macOS's own animation layer, at no cost to Search.
 - With extensions installed, the window no longer waits for them: they load once it is up. The first launch after an update, when Search fits its Chrome compatibility layer to each extension again, does that away from the main thread — with Grammarly, the window had stood still for half a second. Thanks [@andupoto](https://x.com/andupoto) for the report
