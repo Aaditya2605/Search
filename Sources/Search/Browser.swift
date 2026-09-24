@@ -29,9 +29,23 @@ final class Browser: NSObject, ObservableObject {
         }
     }
 
+    /// What this window is. The first restores yesterday and is the only one
+    /// saved. Another is a fresh row of tabs. A private one keeps nothing.
+    enum Kind {
+        case home, fresh, shy
+    }
+
+    let kind: Kind
+    /// The window this row of tabs is drawn in, once it has one.
+    weak var window: NSWindow?
+    /// One jar for every tab of a private window. It dies with the window,
+    /// so a sign-in in one private tab is there in the next, and in neither
+    /// once the window is gone.
+    private var privateStore: WKWebsiteDataStore?
+
     /// Everything there is to set. Held here so the whole window redraws when
-    /// one of them changes.
-    let prefs = Preferences()
+    /// one of them changes. Further windows share the first's.
+    let prefs: Preferences
     /// The settings panel.
     @Published var tuning = false
     /// The first-launch walk-through, over everything. Also from the menu.
@@ -39,7 +53,7 @@ final class Browser: NSObject, ObservableObject {
 
     // MARK: - bookmarks
 
-    let bookmarks = Bookmarks()
+    let bookmarks: Bookmarks
     /// The full list, for taking things out.
     @Published var bookmarking = false
     /// The dropdown off the button.
@@ -102,7 +116,7 @@ final class Browser: NSObject, ObservableObject {
     /// answers to this string.
     @Published var typed = "" { didSet { guess() } }
 
-    let history = History()
+    let history: History
     /// What the field is offering, best first.
     @Published private(set) var offers: [Suggestion] = []
     /// The rest of the best match, drawn grey after the caret. Tab takes it.
@@ -177,8 +191,8 @@ final class Browser: NSObject, ObservableObject {
 
     // MARK: - taking things off pages
 
-    let curtain = Curtain()
-    let loot = Loot()
+    let curtain: Curtain
+    let loot: Loot
     let floater = Float()
     /// True while the pointer is picking things to hide.
     @Published private(set) var veiling = false
@@ -692,18 +706,38 @@ final class Browser: NSObject, ObservableObject {
 
     // MARK: - beginning and ending
 
-    override init() {
+    /// `sharing` is the first window. A further window uses its settings,
+    /// history, bookmarks and the rest, and starts from one empty tab —
+    /// a private one, when that is what was asked for.
+    init(kind: Kind = .home, sharing: Browser? = nil) {
+        self.kind = kind
+        if let sharing {
+            prefs = sharing.prefs
+            bookmarks = sharing.bookmarks
+            history = sharing.history
+            curtain = sharing.curtain
+            loot = sharing.loot
+        } else {
+            prefs = Preferences()
+            bookmarks = Bookmarks()
+            history = History()
+            curtain = Curtain()
+            loot = Loot()
+        }
         super.init()
-        Shield.shared.enabled = prefs.shielded
-        Shield.shared.compile()
-        if #available(macOS 15.4, *) { Extensions.shared.start(for: self) }
-        if prefs.bench { Bench.shared.start(for: self) }
-        welcoming = !prefs.welcomed
+        if kind == .shy { privateStore = .nonPersistent() }
+        if kind == .home {
+            Shield.shared.enabled = prefs.shielded
+            Shield.shared.compile()
+            if #available(macOS 15.4, *) { Extensions.shared.start(for: self) }
+            if prefs.bench { Bench.shared.start(for: self) }
+            welcoming = !prefs.welcomed
+            // Once a day, quietly: is there a newer one?
+            Updater.shared.checkIfDue { [weak self] line in self?.announce(line) }
+            FormRelay.passkeysOffered = prefs.passkeys
+        }
         // Asked to stay out of the way: it starts that way (see Fold.swift).
         folded = prefs.sidebar && prefs.sideHides
-        // Once a day, quietly: is there a newer one?
-        Updater.shared.checkIfDue { [weak self] line in self?.announce(line) }
-        FormRelay.passkeysOffered = prefs.passkeys
 
         // The History menu lists what the history holds, and the menu is drawn
         // from this object's changes — so the history's are passed on.
@@ -716,10 +750,11 @@ final class Browser: NSObject, ObservableObject {
 
         // An icon that arrives is put on every tab showing that site, not only
         // the one that happened to ask for it.
-        Favicons.shared.arrived = { [weak self] host, image in
-            guard let self else { return }
-            for tab in tabs where tab.address?.host()?.lowercased() == host {
-                tab.icon = image
+        Favicons.shared.arrived = { host, image in
+            for browser in Windows.living {
+                for tab in browser.tabs where tab.address?.host()?.lowercased() == host {
+                    tab.icon = image
+                }
             }
         }
         // The little window's own three buttons.
@@ -734,7 +769,7 @@ final class Browser: NSObject, ObservableObject {
                 self.select(tab)
             }
             NSApp.activate(ignoringOtherApps: true)
-            NSApp.windows.first { $0.contentView != nil }?.makeKeyAndOrderFront(nil)
+            self.window?.makeKeyAndOrderFront(nil)
         }
         floater.onSkip = { [weak self] seconds in
             guard let self, let id = self.floating,
@@ -775,6 +810,19 @@ final class Browser: NSObject, ObservableObject {
             watchForSleep()
         }
 
+        Windows.note(self)
+        guard kind == .home else {
+            let tab = kind == .shy ? freshTab() : Tab()
+            adopt(tab)
+            activeID = tab.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak tab] in
+                guard let tab, tab.isBlank else { return }
+                _ = tab.web
+            }
+            if kind == .shy { announce("A window that keeps nothing") }
+            return
+        }
+
         // What a deleted space left behind, if WebKit wouldn't let it go then.
         Spaces.sweep()
         Spaces.sharing = Set(spaces.filter { $0.sharesSignIns == true }.map(\.id))
@@ -786,6 +834,14 @@ final class Browser: NSObject, ObservableObject {
         }
         restoreSession()
         if prefs.usesSpaces { preloadSpaces() }
+    }
+
+    /// A blank tab for this window: private, and sharing the window's jar,
+    /// when the window itself is.
+    private func freshTab() -> Tab {
+        let config = Web.configuration(shy: true)
+        if let privateStore { config.websiteDataStore = privateStore }
+        return Tab(shy: true, configuration: config)
     }
 
     /// The row of tabs the space on screen had last time, or one empty tab.
@@ -831,14 +887,18 @@ final class Browser: NSObject, ObservableObject {
         // were before (see Spaces.swift).
         prefs.$usesSpaces
             .dropFirst()
-            .sink { [weak self] on in if on { self?.preloadSpaces() } else { self?.leaveSpaces() } }
+            .sink { [weak self] on in
+                guard let self, self.kind == .home else { return }
+                if on { self.preloadSpaces() } else { self.leaveSpaces() }
+            }
             .store(in: &bag)
         prefs.$shielded
             .dropFirst()
             .sink { [weak self] on in
                 guard let self else { return }
-                Shield.shared.enabled = on
                 Shield.shared.apply(to: tabs.compactMap { $0.built?.configuration.userContentController })
+                guard kind == .home else { return }
+                Shield.shared.enabled = on
                 announce(on ? "Ads and trackers blocked" : "Blocking off — reload to see the difference")
             }
             .store(in: &bag)
@@ -863,7 +923,7 @@ final class Browser: NSObject, ObservableObject {
         prefs.$bench
             .dropFirst()
             .sink { [weak self] on in
-                guard let self else { return }
+                guard let self, self.kind == .home else { return }
                 if on { Bench.shared.start(for: self) } else { Bench.shared.stop() }
                 announce(on ? "Scripts can drive Search — see ./bench" : "The bench is closed")
             }
@@ -892,6 +952,7 @@ final class Browser: NSObject, ObservableObject {
                 for tab in tabs {
                     tab.arm(hiding: curtain.css(on: curtain.host(of: tab.address)))
                 }
+                guard kind == .home else { return }
                 announce(on ? "Passkeys offered again — reload the page" : "Sites will ask for a password instead")
             }
             .store(in: &bag)
@@ -908,7 +969,7 @@ final class Browser: NSObject, ObservableObject {
         prefs.$autocorrect
             .dropFirst()
             .sink { [weak self] on in
-                guard let self, let web = active?.web else { return }
+                guard let self, self.kind == .home, let web = active?.web else { return }
                 let selector = NSSelectorFromString("toggleAutomaticSpellingCorrection:")
                 guard web.responds(to: selector) else { return }
                 // Toggling is all there is, so it is only sent when the two
@@ -927,6 +988,9 @@ final class Browser: NSObject, ObservableObject {
     }
 
     func writeSession(now: Bool = false) {
+        // Only the first window is tomorrow's session. Another window is a
+        // place to work until it is closed, and a private one keeps nothing.
+        guard kind == .home else { return }
         Session.write(
             now: now,
             space: spaceID,
@@ -968,6 +1032,11 @@ final class Browser: NSObject, ObservableObject {
     // MARK: - tabs
 
     func newTab() {
+        // A private window's tabs are all private. ⌘T there is another of them.
+        if kind == .shy {
+            newShyTab()
+            return
+        }
         // An extension's new tab page, if one asked and you said yes.
         if #available(macOS 15.4, *), let page = Extensions.shared.newTabPage {
             open(page, foreground: true)
@@ -1071,9 +1140,9 @@ final class Browser: NSObject, ObservableObject {
 
         if tabs.count == 1 {
             if tab.isBlank {
-                NSApp.keyWindow?.performClose(nil)
+                window?.performClose(nil)
             } else {
-                let fresh = Tab()
+                let fresh = kind == .shy ? freshTab() : Tab()
                 remember(tab, at: 0)
                 tab.close()
                 adopt(fresh)
@@ -1187,7 +1256,7 @@ final class Browser: NSObject, ObservableObject {
         // An extension's own page is served only to a view built from that
         // extension's configuration.
         let url = Browser.page(url)
-        let tab = Tab(configuration: Browser.extensionConfiguration(for: url))
+        let tab = kind == .shy ? freshTab() : Tab(configuration: Browser.extensionConfiguration(for: url))
         prepare(tab)
         let here = atEnd ? nil : tabs.firstIndex { $0.id == activeID }
         tabs.insert(tab, at: here.map { $0 + 1 } ?? tabs.count)
@@ -1281,8 +1350,9 @@ final class Browser: NSObject, ObservableObject {
         visit(url)
     }
 
-    /// ⌘⇧N. A tab that keeps nothing — its own cookies, its own sign-ins, no
-    /// history, and no place in tomorrow's session.
+    /// A tab that keeps nothing — its own cookies, its own sign-ins, no
+    /// history, and no place in tomorrow's session. In a private window every
+    /// tab is one of these, and they share the window's jar.
     func newShyTab() {
         // Never two empty private tabs, as ⌘T never makes two empty ones:
         // one already open comes to the end of the row and is the one opened.
@@ -1298,7 +1368,7 @@ final class Browser: NSObject, ObservableObject {
             focusRequest += 1
             return
         }
-        let tab = Tab(shy: true)
+        let tab = kind == .shy ? freshTab() : Tab(shy: true)
         adopt(tab)
         leaving()
         activeID = tab.id
@@ -1306,7 +1376,7 @@ final class Browser: NSObject, ObservableObject {
         typed = ""
         editing = false
         focusRequest += 1
-        announce("A tab that keeps nothing")
+        if kind != .shy { announce("A tab that keeps nothing") }
     }
 
     /// ⌘D. The same page, beside itself.
