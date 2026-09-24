@@ -58,7 +58,7 @@ enum Windows {
         let browser = Browser(kind: shy ? .shy : .fresh, sharing: home)
         let controller = NSHostingController(rootView: ContentView(browser: browser))
         let window = NSWindow(contentViewController: controller)
-        window.styleMask = [.titled, .closable, .miniaturize, .resizable, .fullSizeContentView]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.titlebarSeparatorStyle = .none
