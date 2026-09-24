@@ -19,6 +19,7 @@ in [ROADMAP.md](ROADMAP.md).
 ### Fixed
 
 - ⌘← and ⌘→ move the caret in a text box inside a frame, such as a comment box embedded from another site, as they do in any other text box. They went back or forward in the tab's history instead, and what was typed there was lost.
+- In the dark, a tab on ChatGPT wears its logo in white, where it wore a black one the dark tab bar all but hid. The icon ChatGPT names for the dark is an SVG, which Search can't draw, so its black one stood in; a black icon kept for the dark is now drawn white, the one already kept included.
 - A tab on Safari, or anywhere else whose icon is a Windows `.ico`, no longer wears a blank square. The icon was drawn off the main thread, which comes back clear for that kind of file, and the clear square was then kept.
 - Paste and Go opens the page in a new tab beside the one on screen, which stays where it is.
 - A mouse wheel scrolls pages that listen to the wheel themselves, as carousels and x.com do: Search stopped pages bouncing past their top and bottom with a style of its own, and together with such a listener WebKit dropped the wheel's steps. The bounce is now turned off by WebKit itself, the page's styles untouched, and the sideways bounce stays for swiping back and forward. Thanks [@olllayor](https://github.com/olllayor) ([#194](https://github.com/driceroland/Search/pull/194)). Fixes [#180](https://github.com/driceroland/Search/issues/180)

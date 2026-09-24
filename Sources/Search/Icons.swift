@@ -53,13 +53,14 @@ final class Favicons {
         // into `memory`, which is asked first.
         if absent.contains(key) { return nil }
         let file = Favicons.file(key)
-        guard let image = NSImage(contentsOf: file) else {
+        guard let data = try? Data(contentsOf: file) else {
             absent.insert(key)
             return nil
         }
         // A clear square left by an earlier draw is not an icon. Drop it, so
         // the next look at this host fetches again instead of wearing it.
-        guard Favicons.inked(image) else {
+        // Drawn again, a black one kept for the dark comes out white.
+        guard let image = Favicons.raster(data, dark: key.hasSuffix("@dark")) else {
             try? FileManager.default.removeItem(at: file)
             absent.insert(key)
             return nil
@@ -157,7 +158,7 @@ final class Favicons {
                   (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
                   data.count > 60, data.count < 2_000_000
             else { continue }
-            guard let image = await Favicons.square(data) else { continue }
+            guard let image = await Favicons.square(data, dark: key.hasSuffix("@dark")) else { continue }
             memory[key] = image
             if !shy { Favicons.keep(image, for: key) }
             arrived?(host, image)
@@ -176,15 +177,20 @@ final class Favicons {
     /// that are a Windows icon file — Apple's, which is what a tab on Safari
     /// wears. The clear square was then kept, so the tab stayed blank for a
     /// week. A result with no ink is refused, and the next candidate tried.
-    private static func square(_ data: Data) async -> NSImage? {
+    private static func square(_ data: Data, dark: Bool = false) async -> NSImage? {
         await Task.detached(priority: .utility) { () -> NSImage? in
-            Favicons.raster(data)
+            Favicons.raster(data, dark: dark)
         }.value
     }
 
     /// The largest frame in the file, fitted into 64 points. Nothing, when
     /// the file isn't a picture or the picture has no ink.
-    nonisolated private static func raster(_ data: Data) -> NSImage? {
+    ///
+    /// For the dark look, a picture whose ink is all black is drawn white.
+    /// ChatGPT's is: the icon it names for the dark is an SVG that turns
+    /// itself white, ImageIO can't read an SVG, and the icon that stands in
+    /// for it is a black mark the dark tab bar swallows.
+    nonisolated private static func raster(_ data: Data, dark: Bool) -> NSImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let count = CGImageSourceGetCount(source)
         var best: CGImage?
@@ -211,8 +217,27 @@ final class Favicons {
         let w = CGFloat(frame.width) * scale
         let h = CGFloat(frame.height) * scale
         ctx.draw(frame, in: CGRect(x: (CGFloat(side) - w) / 2, y: (CGFloat(side) - h) / 2, width: w, height: h))
+        // ponytail: white stands in for the site's own dark SVG; draw SVGs
+        // through WebKit if a dark icon has to be more than the light one in white.
+        if dark, Favicons.black(ctx) {
+            ctx.setBlendMode(.sourceIn)
+            ctx.setFillColor(CGColor.white)
+            ctx.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        }
         guard let drawn = ctx.makeImage(), Favicons.inked(drawn) else { return nil }
         return NSImage(cgImage: drawn, size: NSSize(width: side, height: side))
+    }
+
+    /// Whether all the ink in a drawn icon is near black: a mark made for a
+    /// light page, which a dark one hides.
+    nonisolated private static func black(_ ctx: CGContext) -> Bool {
+        guard let base = ctx.data else { return false }
+        let px = base.assumingMemoryBound(to: UInt8.self)
+        for i in stride(from: 0, to: ctx.bytesPerRow * ctx.height, by: 4) where px[i + 3] > 24 {
+            // Premultiplied: a colour counts against its own alpha.
+            if Int(max(px[i], px[i + 1], px[i + 2])) * 4 > Int(px[i + 3]) { return false }
+        }
+        return true
     }
 
     /// Whether a decoded picture has any ink. A clear square is what a failed
@@ -242,11 +267,6 @@ final class Favicons {
             index += step
         }
         return false
-    }
-
-    private static func inked(_ image: NSImage) -> Bool {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return false }
-        return inked(cg)
     }
 
     private static func keep(_ image: NSImage, for key: String) {
