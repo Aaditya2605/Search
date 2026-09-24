@@ -24,6 +24,7 @@ in [ROADMAP.md](ROADMAP.md).
 ### Fixed
 
 - A tab on Safari, or anywhere else whose icon is a Windows `.ico`, no longer wears a blank square. The icon was drawn off the main thread, which comes back clear for that kind of file, and the clear square was then kept.
+- ⌘⇧V pastes into a text field again, including a Google Doc. Away from a text field it is still Paste and Go, and the page it opens is a new tab, so the one already on screen stays. ([#138](https://github.com/driceroland/Search/issues/138))
 - Search can be chosen as the default web browser. macOS only lists an app there when it claims XHTML pages as well as HTML pages; Search claimed HTML, http, and https, and so never appeared in Desktop & Dock → Default web browser.
 - The stand-in traffic lights drawn while Search is in the background are no longer redrawn each time the window changes screen or size, only when they move.
 - An empty tab no longer works the processor while it waits: the slow breath under the address field was redrawn by the app every frame, about a sixth of a core with nothing happening. The same breath now runs in macOS's own animation layer, at no cost to Search.

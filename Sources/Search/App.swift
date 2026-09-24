@@ -799,6 +799,13 @@ struct ContentView: View {
         case "j" where shifted:
             browser.hoarding.toggle()
         case "v" where shifted:
+            // In a text field this key is paste without formatting — a Google
+            // Doc, a form, the address field. It only means Paste and Go when
+            // nothing is being typed.
+            if browser.active?.typing == true || browser.editing
+                || event.window?.firstResponder is NSTextView {
+                return false
+            }
             browser.pasteAndGo()
         case "p" where !shifted:
             browser.printPage()
