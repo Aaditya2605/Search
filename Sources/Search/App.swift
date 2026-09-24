@@ -10,6 +10,10 @@ struct SearchApp: App {
     /// Links from other apps, and the Dock icon.
     @NSApplicationDelegateAdaptor(Links.self) private var links
 
+    /// The window in front, for a menu command. Shortcuts are caught by the
+    /// window itself (see ContentView); this is the menu's copy of them.
+    private var front: Browser { Windows.acting(fallback: browser) }
+
     var body: some Scene {
         Window("Search", id: "browser") {
             ContentView(browser: browser)
@@ -18,42 +22,44 @@ struct SearchApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1180, height: 780)
         .commands {
-            // One window. Tabs are the only kind of "new" there is.
             CommandGroup(replacing: .newItem) {
-                Button("New Tab") { browser.newTab() }
+                Button("New Tab") { Windows.acting(fallback: browser).newTab() }
                     .keyboardShortcut("t")
-                Button("New Private Tab") { browser.newShyTab() }
+                Button("New Window") { Windows.open(shy: false) }
+                    .keyboardShortcut("n")
+                Button("New Private Window") { Windows.open(shy: true) }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
-                Button("Reopen Closed Tab") { browser.reopen() }
+                Button("New Private Tab") { Windows.acting(fallback: browser).newShyTab() }
+                Button("Reopen Closed Tab") { Windows.acting(fallback: browser).reopen() }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
                     .disabled(browser.ghosts.isEmpty)
                 Divider()
-                Button("Open Address…") { browser.edit() }
+                Button("Open Address…") { front.edit() }
                     .keyboardShortcut("l")
                 Divider()
-                Button("Close Tab") { if let tab = browser.active { browser.close(tab) } }
+                Button("Close Tab") { if let tab = front.active { front.close(tab) } }
                     .keyboardShortcut("w")
             }
             CommandGroup(replacing: .printItem) {
-                Button("Print…") { browser.printPage() }
+                Button("Print…") { front.printPage() }
                     .keyboardShortcut("p")
                     .disabled(browser.active?.isBlank ?? true)
             }
             CommandGroup(after: .pasteboard) {
                 Divider()
-                Button("Find on Page…") { browser.openFind() }
+                Button("Find on Page…") { front.openFind() }
                     .keyboardShortcut("f")
                     .disabled(browser.active?.isBlank ?? true)
-                Button("Find Next") { browser.look(forward: true) }
+                Button("Find Next") { front.look(forward: true) }
                     .keyboardShortcut("g")
                     .disabled(!browser.finding)
-                Button("Find Previous") { browser.look(forward: false) }
+                Button("Find Previous") { front.look(forward: false) }
                     .keyboardShortcut("g", modifiers: [.command, .shift])
                     .disabled(!browser.finding)
             }
             CommandGroup(replacing: .toolbar) {
                 Toggle("Show Tabs in Sidebar", isOn: Binding(
-                    get: { browser.prefs.sidebar },
+                    get: { front.prefs.sidebar },
                     set: { _ in browser.toggleSidebar() }
                 ))
                 .keyboardShortcut("s", modifiers: [.command, .shift])
@@ -61,89 +67,89 @@ struct SearchApp: App {
                 // strip across the top.
                 Button(browser.prefs.sidebar
                        ? (browser.folded ? "Show Sidebar" : "Hide Sidebar")
-                       : (browser.folded ? "Show Tab Bar" : "Hide Tab Bar")) { browser.toggleFold() }
+                       : (browser.folded ? "Show Tab Bar" : "Hide Tab Bar")) { front.toggleFold() }
                     .keyboardShortcut("s")
                 Picker("Tabs Wear", selection: Binding(
-                    get: { browser.prefs.glyph },
-                    set: { browser.prefs.glyph = $0 }
+                    get: { front.prefs.glyph },
+                    set: { front.prefs.glyph = $0 }
                 )) {
                     ForEach(Glyph.allCases) { glyph in
                         Text(glyph.title).tag(glyph)
                     }
                 }
                 Divider()
-                Button("Reload Page") { browser.reload() }
+                Button("Reload Page") { front.reload() }
                     .keyboardShortcut("r")
-                Button("Reading Mode") { browser.toggleReader() }
+                Button("Reading Mode") { front.toggleReader() }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
-                Button("Float Video") { browser.toggleFloat() }
+                Button("Float Video") { front.toggleFloat() }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
                 Divider()
-                Button("Hide Elements…") { browser.toggleHiding() }
+                Button("Hide Elements…") { front.toggleHiding() }
                     .keyboardShortcut("h", modifiers: [.command, .shift])
-                Button("Hidden on This Site…") { browser.reviewing.toggle() }
+                Button("Hidden on This Site…") { front.reviewing.toggle() }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
                 Divider()
-                Button("Zoom In") { browser.zoom(by: 1.1) }
+                Button("Zoom In") { front.zoom(by: 1.1) }
                     .keyboardShortcut("+")
-                Button("Zoom Out") { browser.zoom(by: 1 / 1.1) }
+                Button("Zoom Out") { front.zoom(by: 1 / 1.1) }
                     .keyboardShortcut("-")
-                Button("Actual Size") { browser.resetZoom() }
+                Button("Actual Size") { front.resetZoom() }
                     .keyboardShortcut("0")
                 Divider()
                 // The Web Inspector, on the keys Chrome and Arc use (see Inspector.swift).
-                Button("Web Inspector") { browser.toggleInspector() }
+                Button("Web Inspector") { front.toggleInspector() }
                     .keyboardShortcut("i", modifiers: [.command, .option])
-                Button("JavaScript Console") { browser.showConsole() }
+                Button("JavaScript Console") { front.showConsole() }
                     .keyboardShortcut("j", modifiers: [.command, .option])
-                Button("Inspect Element") { browser.inspectElement() }
+                Button("Inspect Element") { front.inspectElement() }
                     .keyboardShortcut("c", modifiers: [.command, .option])
             }
             CommandMenu("Tabs") {
-                Button("Back") { browser.back() }
+                Button("Back") { front.back() }
                     .keyboardShortcut("[")
                     .disabled(browser.active?.canGoBack != true)
-                Button("Forward") { browser.forward() }
+                Button("Forward") { front.forward() }
                     .keyboardShortcut("]")
                     .disabled(browser.active?.canGoForward != true)
                 Divider()
-                Button("Next Tab") { browser.step(1) }
+                Button("Next Tab") { front.step(1) }
                     .keyboardShortcut("]", modifiers: [.command, .shift])
-                Button("Previous Tab") { browser.step(-1) }
+                Button("Previous Tab") { front.step(-1) }
                     .keyboardShortcut("[", modifiers: [.command, .shift])
-                Button("Search Tabs…") { browser.summon() }
+                Button("Search Tabs…") { front.summon() }
                     .keyboardShortcut("k")
                 Divider()
                 if let tab = browser.active {
                     if tab.pin == nil {
-                        Button("Pin Tab") { browser.pin(tab) }
+                        Button("Pin Tab") { front.pin(tab) }
                             .disabled(tab.isBlank)
                     } else {
-                        Button("Change Letter") { browser.editLetter(tab) }
-                        Button("Unpin Tab") { browser.unpin(tab) }
+                        Button("Change Letter") { front.editLetter(tab) }
+                        Button("Unpin Tab") { front.unpin(tab) }
                     }
                 }
-                Button("Rename Tab") { if let tab = browser.active { browser.beginTabRename(tab) } }
+                Button("Rename Tab") { if let tab = front.active { front.beginTabRename(tab) } }
                     .disabled(browser.active == nil)
-                Button("Duplicate Tab") { browser.duplicate() }
+                Button("Duplicate Tab") { front.duplicate() }
                     .keyboardShortcut("d")
                     .disabled(browser.active?.isBlank ?? true)
-                Button("Copy Address") { browser.copyAddress() }
+                Button("Copy Address") { front.copyAddress() }
                     .keyboardShortcut("c", modifiers: [.command, .shift])
                     .disabled(browser.active?.isBlank ?? true)
-                Button("Paste and Go") { browser.pasteAndGo() }
+                Button("Paste and Go") { front.pasteAndGo() }
                     .keyboardShortcut("v", modifiers: [.command, .shift])
                 Divider()
-                Button("Close Other Tabs") { if let tab = browser.active { browser.closeOthers(but: tab) } }
+                Button("Close Other Tabs") { if let tab = front.active { front.closeOthers(but: tab) } }
                     .disabled(browser.tabs.count < 2)
-                Button("Stop Sound in Tab") { browser.pauseMedia() }
+                Button("Stop Sound in Tab") { front.pauseMedia() }
                     .keyboardShortcut("m", modifiers: [.command, .shift])
             }
             CommandMenu("Bookmarks") {
-                Button("Add This Page") { browser.bookmarkCurrent() }
+                Button("Add This Page") { front.bookmarkCurrent() }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
                     .disabled(browser.active?.isBlank ?? true)
-                Button("Show Bookmarks…") { browser.bookmarking = true }
+                Button("Show Bookmarks…") { front.bookmarking = true }
                 // The bookmarks themselves follow, put in by AppKit (see
                 // BookmarkMenu in Bookmarks.swift).
             }
@@ -151,7 +157,7 @@ struct SearchApp: App {
                 Section("Recently Visited") {
                     ForEach(browser.recentlyVisited) { trace in
                         Button {
-                            browser.open(trace.url, foreground: true)
+                            front.open(trace.url, foreground: true)
                         } label: {
                             MenuLine(title: trace.title.isEmpty ? trace.key : trace.title, url: trace.url)
                         }
@@ -161,7 +167,7 @@ struct SearchApp: App {
                     Section("Recently Closed") {
                         ForEach(browser.ghosts.reversed().prefix(10)) { ghost in
                             Button {
-                                browser.reopen(ghost)
+                                front.reopen(ghost)
                             } label: {
                                 MenuLine(title: ghost.label, url: ghost.url)
                             }
@@ -169,18 +175,18 @@ struct SearchApp: App {
                     }
                 }
                 Divider()
-                Button("Show History…") { browser.recalling = true }
+                Button("Show History…") { front.recalling = true }
                     .keyboardShortcut("y")
-                Button("Downloads…") { browser.hoarding = true }
+                Button("Downloads…") { front.hoarding = true }
                     .keyboardShortcut("j", modifiers: [.command, .shift])
                 Divider()
-                Button("Clear History") { browser.clearHistory() }
+                Button("Clear History") { front.clearHistory() }
             }
             CommandGroup(after: .appSettings) {
-                Button("Settings…") { browser.tuning = true }
+                Button("Settings…") { front.tuning = true }
                     .keyboardShortcut(",")
-                Button("Welcome…") { browser.welcoming = true }
-                Button("Passwords…") { browser.managing = true }
+                Button("Welcome…") { front.welcoming = true }
+                Button("Passwords…") { front.managing = true }
                     .keyboardShortcut("l", modifiers: [.command, .option])
             }
             CommandGroup(replacing: .help) {
@@ -400,9 +406,17 @@ struct ContentView: View {
         .onAppear {
             watchKeys()
             browser.askFocus()
-            // Addresses from other apps have somewhere to go from here on.
-            Links.hand(to: browser)
-            BookmarkMenu.shared.start(for: browser)
+            // Addresses from other apps have somewhere to go from here on —
+            // the first window's. A further window is just more tabs.
+            if browser.kind == .home {
+                Links.hand(to: browser)
+                BookmarkMenu.shared.start(for: browser)
+                Windows.home = browser
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            guard (note.object as? NSWindow) === window else { return }
+            Windows.front = browser
         }
     }
 
@@ -577,7 +591,12 @@ struct ContentView: View {
     }
 
     private func dress(_ window: NSWindow) {
-        Links.window = window
+        browser.window = window
+        Windows.note(browser)
+        // The first window is the one links, the bench and a space's swipe
+        // already know by name. Another keeps its own frame: saving it under
+        // the same name would drag the first back to wherever this one sat.
+        if browser.kind == .home { Links.window = window }
         // Light or dark is the app's to say (Settings › Appearance); the
         // window only has to be the ground colour that goes with it.
         window.titlebarAppearsTransparent = true
@@ -594,7 +613,9 @@ struct ContentView: View {
         // own: the name lives in the app's standard defaults, which every
         // copy shares, and a probe resized for a test once changed the size
         // the real window came back at.
-        window.setFrameAutosaveName(Store.world.map { "search (\($0))" } ?? "search")
+        if browser.kind == .home {
+            window.setFrameAutosaveName(Store.world.map { "search (\($0))" } ?? "search")
+        }
 
         // The traffic lights set in from the corner and centred in the strip's
         // height, in both modes, without a toolbar's rounder corners — see
@@ -644,6 +665,9 @@ struct ContentView: View {
     ]
 
     private func take(_ event: NSEvent) -> Bool {
+        // Each window watches the keys. Only the one the key was pressed in
+        // answers, so ⌘T opens a tab there and not in every window at once.
+        if let eventWindow = event.window, eventWindow !== window { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
 
@@ -723,7 +747,7 @@ struct ContentView: View {
 
         // ⌃1–⌃9 go to that space, when there are spaces — by the key, as
         // ⌘1–⌘9 are below, so the top row works on every layout.
-        if browser.prefs.usesSpaces, flags.contains(.control),
+        if browser.kind == .home, browser.prefs.usesSpaces, flags.contains(.control),
            flags.isDisjoint(with: [.command, .option, .shift]),
            let number = ContentView.digits[event.keyCode], number > 0 {
             browser.switchSpace(index: number - 1)
@@ -766,8 +790,10 @@ struct ContentView: View {
             browser.copyAddress()
         case "d" where !shifted:
             browser.duplicate()
+        case "n" where !shifted:
+            Windows.open(shy: false)
         case "n" where shifted:
-            browser.newShyTab()
+            Windows.open(shy: true)
         case "y" where !shifted:
             browser.recalling.toggle()
         case "j" where shifted:
