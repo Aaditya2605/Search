@@ -11,6 +11,7 @@ final class Browser: NSObject, ObservableObject {
     @Published private(set) var tabs: [Tab] = []
     @Published var activeID: Tab.ID? {
         didSet {
+            nameWindow()
             // The tab just left is the tab just looked at. Whether a tab has
             // gone unwatched long enough to sleep is counted from here, not
             // from when it was first picked.
@@ -38,7 +39,11 @@ final class Browser: NSObject, ObservableObject {
 
     let kind: Kind
     /// The window this row of tabs is drawn in, once it has one.
-    weak var window: NSWindow?
+    weak var window: NSWindow? { didSet { nameWindow() } }
+
+    /// The window goes by the tab on screen, as in Safari: that is its line in
+    /// the Dock's menu and the Window menu. The title bar never shows it.
+    func nameWindow() { window?.title = active?.label ?? "Search" }
     /// One jar for every tab of a private window. It dies with the window,
     /// so a sign-in in one private tab is there in the next, and in neither
     /// once the window is gone.
@@ -1727,6 +1732,16 @@ final class Browser: NSObject, ObservableObject {
             .sink { [weak self, weak tab] title in
                 guard let tab, !tab.shy, let url = tab.address else { return }
                 self?.history.retitle(url, title)
+            }
+            .store(in: &bag)
+
+        // The window's name follows the page's title, or its address until it
+        // has one. Read after the change: @Published tells just before it.
+        tab.$title.combineLatest(tab.$address)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak tab] _ in
+                guard let self, tab?.id == self.activeID else { return }
+                nameWindow()
             }
             .store(in: &bag)
     }
