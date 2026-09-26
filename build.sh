@@ -38,6 +38,12 @@ CONFIG="${1:-release}"
 STEP="${2:-app}"
 APP="build/Search.app"
 NAME="Search"
+# A name for this Mac only, so a local build is not the released app.
+# .local-name is not part of the repo. The pull request stays "Search".
+DISPLAY_NAME="$NAME"
+if [ -f .local-name ]; then
+  DISPLAY_NAME="$(tr -d '\n' < .local-name)"
+fi
 VERSION="$(tr -d '[:space:]' < VERSION)"
 # A build number that only ever goes up, so the updater can tell newer from
 # older without parsing version strings.
@@ -107,8 +113,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>$NAME</string>
-  <key>CFBundleDisplayName</key><string>$NAME</string>
+  <key>CFBundleName</key><string>$DISPLAY_NAME</string>
+  <key>CFBundleDisplayName</key><string>$DISPLAY_NAME</string>
   <key>CFBundleExecutable</key><string>$NAME</string>
   <key>CFBundleIdentifier</key><string>com.officecommun.search</string>
   <key>CFBundlePackageType</key><string>APPL</string>
