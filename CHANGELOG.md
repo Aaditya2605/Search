@@ -61,6 +61,7 @@ in [ROADMAP.md](ROADMAP.md).
 - The site card opens above the address of a tab near the bottom of the screen, when there is no room under it. Pushed up to fit, it covered the field the address was being edited in, and what was typed there. Thanks [@StefanTodorov32](https://github.com/StefanTodorov32) ([#420](https://github.com/driceroland/Search/pull/420), [#418](https://github.com/driceroland/Search/issues/418))
 - Two sites on the same address with different ports, such as localhost:3000 and localhost:4321, each have their own icon: icons were kept by the host alone, so two local projects wore whichever icon came last. Thanks [@wouter-deen](https://github.com/wouter-deen) for reporting ([#413](https://github.com/driceroland/Search/issues/413))
 - A site that changes its icon after it has loaded, as GitHub does with its theme, shows the new one, and a site's light and dark icons no longer take each other's place. Thanks [@keyding](https://github.com/keyding) for reporting ([#423](https://github.com/driceroland/Search/issues/423))
+- Pins and pinned tabs brought over from Arc wear their icons at once, taken from Arc's own icons as the bookmarks' are, instead of a letter until each page was opened. Thanks [@Chahine-tech](https://github.com/Chahine-tech) ([#424](https://github.com/driceroland/Search/pull/424), [#416](https://github.com/driceroland/Search/issues/416))
 
 ## 1.0.4 — 27 September 2026
 
