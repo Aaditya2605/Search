@@ -13,6 +13,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- A game played on the arrow keys, or any page that uses keys without saying so, no longer makes the Mac beep on each press: only the last key was kept quiet, so keys pressed quickly or held down beeped ([#402](https://github.com/driceroland/Search/issues/402))
 - Every window is in the Dock's menu and the Window menu, by the name of the tab on screen, or its address until it has a title, as in Safari. With more than one window, none were there, so the one you wanted could not be picked from either. The title bar still shows no name.
 - The address being edited in a tab moves with the caret: the field was the right width, but it clipped the address instead of scrolling it, so ← and → still took the caret out of sight ([#419](https://github.com/driceroland/Search/issues/419)).
 - The address field a tab grows into shows whole when the tabs overflow the row: the row now scrolls to it. Before, it stayed where it was for the tab's old width, so the end of the field, and the end of the address with it, sat past the row's edge.
