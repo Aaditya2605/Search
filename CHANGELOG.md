@@ -13,6 +13,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- The address being edited in a tab scrolls with the caret: the field was as wide as the whole address and the row cut it off, so ← and → moved the caret out of sight and the end of a long address never showed. Thanks [@StefanTodorov32](https://github.com/StefanTodorov32) ([#421](https://github.com/driceroland/Search/pull/421), [#419](https://github.com/driceroland/Search/issues/419))
 - The tab you're on can be closed with a click when the tabs are down to their icons: with the pointer on it, its icon becomes the cross, as in Chrome. The other tabs keep their icon, so a click to go to one never closes it. Before, only ⌘W, a middle-click or the menu closed a tab that narrow.
 
 ## 1.0.4 — 27 September 2026
