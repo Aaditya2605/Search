@@ -85,13 +85,19 @@ enum ExtensionNative {
         // have left its host behind.
         stopOrphans()
         let pipe = HostPipe(program: program, origin: "chrome-extension://\(extensionID)/")
-        try pipe.start()
+        let id = ObjectIdentifier(pipe)
+        // Set before the host runs: from then on they are read off the main
+        // thread, as the host speaks or ends.
         pipe.onMessage = { message in
             DispatchQueue.main.async { port.sendMessage(message, completionHandler: nil) }
         }
         pipe.onExit = {
-            DispatchQueue.main.async { if !port.isDisconnected { port.disconnect() } }
+            DispatchQueue.main.async {
+                if !port.isDisconnected { port.disconnect() }
+                Live.pipes[id] = nil
+            }
         }
+        try pipe.start()
         var beating: Timer?
         port.messageHandler = { message, _ in
             guard let message else { return }
@@ -120,7 +126,9 @@ enum ExtensionNative {
             try? pipe.write(message)
         }
         port.disconnectHandler = { _ in beating?.invalidate(); pipe.stop() }
-        Live.keep(pipe, for: port)
+        // Before the host's end can come round to take it out: that waits
+        // for the main thread, which is here.
+        Live.pipes[id] = (pipe, port)
     }
 
     /// WebKit doesn't always say when a port goes: an extension unloaded —
@@ -138,14 +146,6 @@ enum ExtensionNative {
     /// Hosts that are connected, held until they end.
     private enum Live {
         nonisolated(unsafe) static var pipes: [ObjectIdentifier: (pipe: HostPipe, port: WKWebExtension.MessagePort)] = [:]
-        static func keep(_ pipe: HostPipe, for port: WKWebExtension.MessagePort) {
-            pipes[ObjectIdentifier(pipe)] = (pipe, port)
-            let previous = pipe.onExit
-            pipe.onExit = {
-                previous?()
-                DispatchQueue.main.async { pipes[ObjectIdentifier(pipe)] = nil }
-            }
-        }
     }
 }
 
@@ -233,13 +233,17 @@ final class HostPipe: @unchecked Sendable {
         rest.forEach { onMessage?($0) }
     }
 
+    /// Called twice as a host ends — its output closing, its process
+    /// exiting — often at the same moment on two threads: `onExit` is taken
+    /// under the lock, so only one of them runs it, and releases it.
     private func finish() {
         lock.lock()
         let pending = waiters
         waiters = []
+        let exit = onExit
+        onExit = nil
         lock.unlock()
         pending.forEach { $0.resume(throwing: ExtensionNative.Refused(why: "Native host has exited.")) }
-        onExit?()
-        onExit = nil
+        exit?()
     }
 }
