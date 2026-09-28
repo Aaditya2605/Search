@@ -1275,7 +1275,7 @@ final class PageView: WKWebView {
 
     // MARK: - keys the page didn't use
 
-    /// The last key handed to the page. WebKit sends a key the page didn't
+    /// The keys handed to the page lately. WebKit sends a key the page didn't
     /// use back up the responder chain — the same event, a second time —
     /// where nothing takes it and macOS plays its "can't do that" sound.
     /// Editors that put the text in themselves (X's reply box, anything built
@@ -1283,17 +1283,23 @@ final class PageView: WKWebView {
     /// them beeped. Safari keeps those quiet, and so does this view. The
     /// app's own shortcuts never get this far: its key monitor takes them
     /// before the page sees the key.
-    private var handed: NSEvent?
+    ///
+    /// More than the last one: the page answers a while after, and a key
+    /// pressed again before then — the arrows on a YouTube video, busy
+    /// seeking or showing an ad — came back unknown and beeped.
+    private var handed: [NSEvent] = []
     /// How many came back unused and were kept quiet, for the bench.
     static var quieted = 0
 
     override func keyDown(with event: NSEvent) {
-        if let handed, PageView.same(handed, event) {
-            self.handed = nil
+        if let index = handed.firstIndex(where: { PageView.same($0, event) }) {
+            handed.remove(at: index)
             PageView.quieted += 1
             return
         }
-        handed = event
+        // ponytail: a key the page used never comes back, so only the last
+        // 64 are kept; a page that falls further behind than that beeps again.
+        handed = handed.suffix(63) + [event]
         super.keyDown(with: event)
     }
 

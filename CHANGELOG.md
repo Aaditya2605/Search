@@ -18,6 +18,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- A key pressed again before a busy page has answered the last one — the arrows on a YouTube video while it seeks or shows an ad — no longer makes the Mac's error sound. Only the last key handed to the page was remembered, so a key it answered late came back unknown.
 - ⌘← and ⌘→ move the caret in a text box inside a frame, such as a comment box embedded from another site, as they do in any other text box. They went back or forward in the tab's history instead, and what was typed there was lost.
 - In the dark, a tab on ChatGPT wears its logo in white, where it wore a black one the dark tab bar all but hid. The icon ChatGPT names for the dark is an SVG, which Search can't draw, so its black one stood in; a black icon kept for the dark is now drawn white, the one already kept included.
 - A tab on Safari, or anywhere else whose icon is a Windows `.ico`, no longer wears a blank square. The icon was drawn off the main thread, which comes back clear for that kind of file, and the clear square was then kept.
