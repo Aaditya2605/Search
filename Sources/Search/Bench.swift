@@ -1037,9 +1037,16 @@ final class Bench {
             let closed = BookmarkOutline(bookmarks: browser.bookmarks, expanded: .constant([]), open: { _ in }, openInNewTab: { _ in })
                 .padding(6)
                 .frame(width: 280)
+            // And as it opens now, with what opens with it.
+            let opening = BookmarksDropdown.opening(browser.bookmarks.roots)
+            let shown = BookmarkOutline(bookmarks: browser.bookmarks, expanded: .constant(opening), open: { _ in }, openInNewTab: { _ in })
+                .padding(6)
+                .frame(width: 280)
             answer(["height": Double(whole.height), "width": Double(whole.width), "list": Double(dropdown.listHeight),
                     "allOpen": Double(NSHostingView(rootView: outline).fittingSize.height),
-                    "closed": Double(NSHostingView(rootView: closed).fittingSize.height)])
+                    "closed": Double(NSHostingView(rootView: closed).fittingSize.height),
+                    "shown": Double(NSHostingView(rootView: shown).fittingSize.height),
+                    "opening": opening.count])
 
         case "import":
             // Another browser's passwords, bookmarks and history, brought in

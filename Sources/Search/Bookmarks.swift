@@ -1089,7 +1089,22 @@ struct BookmarksDropdown: View {
     @ObservedObject var browser: Browser
     @ObservedObject var bookmarks: Bookmarks
 
-    @State private var expanded: Set<Bookmark.ID> = []
+    @State private var expanded: Set<Bookmark.ID>
+
+    init(browser: Browser, bookmarks: Bookmarks) {
+        self.browser = browser
+        self.bookmarks = bookmarks
+        _expanded = State(initialValue: Self.opening(bookmarks.roots))
+    }
+
+    /// Open as the list opens: a top level that is one folder and nothing
+    /// else, as bringing bookmarks in from another browser often leaves
+    /// ("Dia", "Imported from Chrome"). Closed, it was one row in a list
+    /// sized for all it holds (see listHeight).
+    static func opening(_ roots: [Bookmark]) -> Set<Bookmark.ID> {
+        guard roots.count == 1, let only = roots.first, only.isFolder else { return [] }
+        return [only.id]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

@@ -8,7 +8,8 @@ screen (bench `dropdown`); no popover or window is opened. The popover
 takes its height once, as it opens, and doesn't grow with a folder opened
 in it: sized by the rows it showed then, one closed folder, the list was a
 row high and the folder opened into a sliver (reported on 1.0.4). Now it is
-as tall as the tree with every folder open, up to 360 points.
+as tall as the tree with every folder open, up to 360 points, and a top
+level that is one folder alone opens open, so that height is filled.
 """
 import os
 import sys
@@ -62,12 +63,21 @@ def main():
         t.ok("closed, the tree shows one row (what the list was once sized by)", d["closed"] < 50, d)
         t.ok("the list is its full 360 points from the start", d["list"] == 360, d)
         t.ok("the dropdown is the list and its foot", d["height"] >= 360 + 60, d)
+        t.ok("a top level of one folder opens with it open, and fills the list", d["opening"] == 1 and d["shown"] >= d["list"], d)
 
         sv.setup(sidebar=True); sv.launch()
         small = ("Work", [f"https://example.com/w{i}" for i in range(4)] + [("Empty one", [])])
         take([small])
         d = sv.cmd({"do": "dropdown"})
         t.ok("a small folder: tall enough for it opened, not more", 0 <= d["list"] - d["allOpen"] <= 4 and d["list"] < 360, d)
+        # Only the top folder opens: the empty one inside stays closed, one
+        # "Empty" line short of the list's height for everything open.
+        t.ok("…and alone at the top, it opens open", d["opening"] == 1 and d["closed"] < d["shown"] and d["list"] - d["shown"] <= 30, d)
+
+        sv.setup(sidebar=True); sv.launch()
+        take([("A", ["https://example.com/a1"]), ("B", ["https://example.com/b1"])])
+        d = sv.cmd({"do": "dropdown"})
+        t.ok("two folders at the top: both start closed, as before", d["opening"] == 0, d)
     finally:
         t.done(); sv.finish()
     sys.exit(1 if t.failed else 0)
