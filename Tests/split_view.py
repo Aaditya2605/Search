@@ -40,22 +40,42 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 srv = ThreadingHTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
 BASE = f"http://127.0.0.1:{srv.server_port}"
-def pids(): return subprocess.run(["pgrep", "-f", APP + "/Contents/MacOS"], capture_output=True, text=True).stdout.split()
+SOCK = f"{SUPPORT}/bench.sock"
+# Only ever a probe of this world: the one this run started, or one a run
+# before left holding this world's socket. Never the Search someone is using,
+# even one running from this very build (see running()).
+started = set()
+def running(): return set(subprocess.run(["pgrep", "-f", APP + "/Contents/MacOS"], capture_output=True, text=True).stdout.split())
+def holding(): return set(subprocess.run(["lsof", "-t", "--", SOCK], capture_output=True, text=True).stdout.split()) if os.path.exists(SOCK) else set()
+def pids(): return sorted((started & running()) | (holding() & running()))
 def wipe():
     subprocess.run(["rm", "-rf", SUPPORT]); subprocess.run(["defaults", "delete", SUITE], capture_output=True)
+def probe(pid):
+    names = subprocess.run(["lsof", "-a", "-U", "-p", pid, "-Fn"], capture_output=True, text=True).stdout
+    return any(n.startswith("n") and "/Search (" in n and n.endswith("/bench.sock") for n in names.splitlines())
+def main_checkout():
+    git = lambda *a: subprocess.run(["git", "-C", str(ROOT), "rev-parse", *a], capture_output=True, text=True).stdout.strip()
+    return git("--git-dir") != "" and Path(git("--absolute-git-dir")) == Path(ROOT, git("--git-common-dir")).resolve()
+# Someone's own Search running from this build: no probe starts beside it
+# from here. Run the tests from a worktree of your own instead.
+if main_checkout() and any(not probe(p) for p in running()):
+    sys.exit(f"{APP} is in use by a Search that isn't a probe. Run the tests from a worktree (git worktree add).")
 def setup(**prefs):
     for p in pids(): subprocess.run(["kill", p])
+    started.clear()
     time.sleep(1); wipe()
     for k in ["bench", "welcomed"]: subprocess.run(["defaults", "write", SUITE, k, "-bool", "true"])
     for k, v in prefs.items(): subprocess.run(["defaults", "write", SUITE, k, "-bool", "true" if v else "false"])
 def launch():
-    sock = f"{SUPPORT}/bench.sock"
-    if os.path.exists(sock): os.remove(sock)
+    if os.path.exists(SOCK): os.remove(SOCK)
+    before = running()
     subprocess.run(["open", "-n", "-g", "-j", "--env", f"SEARCH_PROBE={W}", APP])
     for _ in range(150):
-        if os.path.exists(sock): break
+        if os.path.exists(SOCK): break
         time.sleep(0.1)
     time.sleep(2)
+    # Whatever came up from this build just now and holds this world's socket.
+    started.update((running() - before) & holding())
 def quit():
     try: cmd({"do": "quit"})
     except Exception: pass
