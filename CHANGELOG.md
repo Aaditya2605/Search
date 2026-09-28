@@ -15,7 +15,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 - Updates can wait for you: Settings › About › Install updates on its own, on as before. Switched off, Search still looks once a day and says when a newer version is out, and fetches, checks and installs it only when you press Install.
 - ⌘N opens a new window, and ⇧⌘N a private one. A new window has its own tabs and the same sign-ins, history and bookmarks as the first. A private window's tabs share a jar that keeps nothing and dies with the window — no history, no place in tomorrow's session. A private tab in the ordinary window is still in the File menu. Every window is in the Window menu and the Dock's menu, by the title of the tab it has on screen.
-- Drag a tab out of the window, across the top or down the column, and let go: it opens in a window of its own, where you let go, with its page as it was — nothing reloads. A pinned tab keeps its place, and a window's only tab stays.
+- Drag a tab out of the window, across the top or down the column, and let go: over another window it joins that window's tabs, anywhere else it opens in a window of its own, where you let go — with its page as it was, nothing reloads. A window's only tab can join another, and the window it leaves closes. A pinned tab keeps its place, and a private tab and an ordinary one never share a window.
 
 ### Fixed
 

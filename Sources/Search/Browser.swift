@@ -1307,28 +1307,50 @@ final class Browser: NSObject, ObservableObject {
     }
 
     /// A tab carried along the row and let go of. Outside the window, it
-    /// leaves for a window of its own, there, with the page as it was —
-    /// nothing reloads. A pin keeps its place in its row, and a window's
-    /// last tab has nowhere to leave.
+    /// goes with the page as it was — nothing reloads — into the window it
+    /// was let go of over, or a window of its own, there. A private tab and
+    /// an ordinary one never share a window. A pin keeps its place in its
+    /// row, and a window's last tab only leaves to join another.
     func letGo(_ tab: Tab) {
-        guard let window, !window.frame.contains(NSEvent.mouseLocation),
-              tab.pin == nil, tabs.count > 1,
-              let index = tabs.firstIndex(where: { $0.id == tab.id }),
-              let fresh = Windows.open(shy: kind == .shy, at: NSEvent.mouseLocation)
+        let point = NSEvent.mouseLocation
+        guard let window, !window.frame.contains(point), tab.pin == nil,
+              let index = tabs.firstIndex(where: { $0.id == tab.id })
+        else { return }
+        // The window on top there, whoever's it is: another app's in front
+        // of one of these is not one of these.
+        let under = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0)
+        let other = Windows.living.first {
+            $0 !== self && $0.window?.windowNumber == under && ($0.kind == .shy) == (kind == .shy)
+        }
+        let last = tabs.count == 1
+        guard other != nil || !last,
+              let target = other ?? Windows.open(shy: kind == .shy, at: point)
         else { return }
         if floating == tab.id { land() }
         tabs.remove(at: index)
-        if activeID == tab.id { select(tabs[min(index, tabs.count - 1)]) }
+        if last {
+            // The first window is tomorrow's session, and is left with a
+            // blank tab rather than none; another has nothing left to be.
+            if kind == .home { newTab() } else { window.performClose(nil) }
+        } else if activeID == tab.id {
+            select(tabs[min(index, tabs.count - 1)])
+        }
         rememberSession()
-        fresh.welcome(tab)
+        target.welcome(tab)
     }
 
-    /// A tab carried here from another window, in place of the blank one a
-    /// new window starts with.
+    /// A tab carried here from another window: at the end of the row, and
+    /// on screen. A blank tab on its own — all a new window has — makes way.
     func welcome(_ tab: Tab) {
         prepare(tab)
-        tabs = [tab]
-        activeID = tab.id
+        let lone = tabs.count == 1 && tabs[0].isBlank ? tabs[0] : nil
+        tabs.append(tab)
+        select(tab)
+        if let lone {
+            tabs.removeAll { $0.id == lone.id }
+            lone.close()
+        }
+        window?.makeKeyAndOrderFront(nil)
     }
 
     func step(_ direction: Int) {
