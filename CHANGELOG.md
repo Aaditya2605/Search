@@ -29,6 +29,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- The column comes back after a video's full screen. Leaving a video's own full screen with Escape, on YouTube for one, could leave the tabs gone until the column was switched off and on again in the View menu: the window heard of a page going full screen and coming back only when something else changed, and coming back there sometimes was nothing else.
 - A live video no longer jumps every few seconds, on X and wherever a player keeps up with the broadcast by nudging its speed. X's switches between normal speed and a touch faster all the time, and each switch through normal speed made WebKit rebuild the sound and hold the picture still meanwhile. Once a page has nudged a video's speed, Search plays its normal speed a hair off exactly 1 (a tenth of a millisecond a second), so the switches go through without a break; the page still reads the speed it asked for.
 - An extension's popup window answers for itself: windows.getCurrent from its page gives that window rather than the one in front, so Bitwarden's passkey window finds and sizes itself, and the window is tied to its page before the extension hears of it. Thanks [@lulkebit](https://github.com/lulkebit) ([#408](https://github.com/driceroland/Search/pull/408))
 - The floating video fills its window on players built like Twitch's: an ancestor with a transform, a filter or containment placed the video inside its own box, so part of the picture or none of it showed, and one drawn only on screen or faded out left the window black.
