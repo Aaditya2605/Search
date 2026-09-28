@@ -722,6 +722,9 @@ struct ContentView: View {
         // already know by name. Another keeps its own frame: saving it under
         // the same name would drag the first back to wherever this one sat.
         if browser.kind == .home { Links.window = window }
+        // SwiftUI keeps a Window scene out of the Dock's menu and the Window
+        // menu. With more than one window, each has to be there to be found.
+        window.isExcludedFromWindowsMenu = false
         // Light or dark is the app's to say (Settings › Appearance); the
         // window only has to be the ground colour that goes with it.
         window.titlebarAppearsTransparent = true
