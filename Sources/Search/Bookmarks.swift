@@ -1107,7 +1107,7 @@ struct BookmarksDropdown: View {
                     }
                     .padding(6)
                 }
-                .frame(maxHeight: 360)
+                .frame(height: listHeight)
             }
             Divider().overlay(Palette.hairline)
             VStack(spacing: 1) {
@@ -1122,6 +1122,32 @@ struct BookmarksDropdown: View {
         .background(Palette.ground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Palette.hairline, lineWidth: 1))
+    }
+
+    /// The list as tall as the whole tree would be with every folder open,
+    /// up to 360 points. The popover takes its height once, from what the
+    /// list holds as it opens, and doesn't grow with a folder opened in it:
+    /// a list of one closed folder was one row high, and the folder opened
+    /// into a sliver above Add This Page.
+    var listHeight: CGFloat {
+        let most: CGFloat = 360
+        var lines = 0
+        Self.count(bookmarks.roots, into: &lines, upTo: Int(most / Self.line) + 1)
+        return min(most, CGFloat(lines) * Self.line + 12)
+    }
+
+    /// A row's height and the gap under it (see BookmarkOutline.Row).
+    private static let line: CGFloat = 28
+
+    /// Every row with every folder open, an empty one's "Empty" included,
+    /// counted only as far as the list can be tall.
+    private static func count(_ nodes: [Bookmark], into lines: inout Int, upTo limit: Int) {
+        for node in nodes {
+            guard lines < limit else { return }
+            lines += 1
+            guard node.isFolder else { continue }
+            if let kids = node.children, !kids.isEmpty { count(kids, into: &lines, upTo: limit) } else { lines += 1 }
+        }
     }
 
     private struct Foot: View {
