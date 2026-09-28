@@ -52,9 +52,11 @@ enum Windows {
     }
 
     /// ⌘N, and ⇧⌘N when `shy` is set. Cascades off whichever window is in
-    /// front, the way every other window on the Mac does.
-    static func open(shy: Bool) {
-        guard let home else { return }
+    /// front, the way every other window on the Mac does — or, for a tab
+    /// carried out of one, opens under the pointer at `point`.
+    @discardableResult
+    static func open(shy: Bool, at point: NSPoint? = nil) -> Browser? {
+        guard let home else { return nil }
         let browser = Browser(kind: shy ? .shy : .fresh, sharing: home)
         let controller = NSHostingController(rootView: ContentView(browser: browser))
         let window = NSWindow(contentViewController: controller)
@@ -69,8 +71,14 @@ enum Windows {
         window.isReleasedWhenClosed = false
         if let key = NSApp.keyWindow ?? NSApp.mainWindow {
             var frame = key.frame
-            frame.origin.x += 28
-            frame.origin.y -= 28
+            if let point {
+                // The tab's own place in the new row lands under the hand.
+                frame.origin.x = point.x - Metrics.lights - 60
+                frame.origin.y = point.y + Metrics.strip / 2 - frame.height
+            } else {
+                frame.origin.x += 28
+                frame.origin.y -= 28
+            }
             window.setFrame(frame, display: false)
         } else {
             window.center()
@@ -80,6 +88,7 @@ enum Windows {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         front = browser
+        return browser
     }
 
     /// Keeps the window until it closes, and no longer than that.

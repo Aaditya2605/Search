@@ -1306,6 +1306,31 @@ final class Browser: NSObject, ObservableObject {
         rememberSession()
     }
 
+    /// A tab carried along the row and let go of. Outside the window, it
+    /// leaves for a window of its own, there, with the page as it was —
+    /// nothing reloads. A pin keeps its place in its row, and a window's
+    /// last tab has nowhere to leave.
+    func letGo(_ tab: Tab) {
+        guard let window, !window.frame.contains(NSEvent.mouseLocation),
+              tab.pin == nil, tabs.count > 1,
+              let index = tabs.firstIndex(where: { $0.id == tab.id }),
+              let fresh = Windows.open(shy: kind == .shy, at: NSEvent.mouseLocation)
+        else { return }
+        if floating == tab.id { land() }
+        tabs.remove(at: index)
+        if activeID == tab.id { select(tabs[min(index, tabs.count - 1)]) }
+        rememberSession()
+        fresh.welcome(tab)
+    }
+
+    /// A tab carried here from another window, in place of the blank one a
+    /// new window starts with.
+    func welcome(_ tab: Tab) {
+        prepare(tab)
+        tabs = [tab]
+        activeID = tab.id
+    }
+
     func step(_ direction: Int) {
         guard tabs.count > 1, let here = tabs.firstIndex(where: { $0.id == activeID }) else { return }
         let next = (here + direction + tabs.count) % tabs.count

@@ -412,6 +412,8 @@ struct SideBar: View {
                 // sits in front of them in the real list.
                 .modifier(Carried(index: index, count: looseTabs.count, step: step, vertical: true, space: "rows") {
                     browser.move(tab, to: $0 + browser.pinnedCount)
+                } letGo: {
+                    browser.letGo(tab)
                 })
             }
         }

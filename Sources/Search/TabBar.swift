@@ -73,6 +73,8 @@ struct TabBar: View {
                                             )
                                             .modifier(Carried(index: index, count: browser.tabs.count, step: step, vertical: false, space: "strip") {
                                                 browser.move(tab, to: $0)
+                                            } letGo: {
+                                                browser.letGo(tab)
                                             })
                                             .id(tab.id)
                                         }
@@ -590,6 +592,8 @@ struct Carried: ViewModifier {
     /// keeps its bearings (see the sidebar's grid).
     let space: String
     let move: (Int) -> Void
+    /// Let go of, wherever the pointer is.
+    var letGo: () -> Void = {}
 
     @State private var held = false
     @State private var from = 0
@@ -627,6 +631,7 @@ struct Carried: ViewModifier {
                             held = false
                             travel = 0
                         }
+                        letGo()
                     }
             )
     }
