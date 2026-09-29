@@ -25,7 +25,7 @@ final class LittleWindow: NSObject, NSWindowDelegate {
     /// `front: false` makes it without showing it — for the bench, which
     /// must never put a window on screen.
     static func show(_ url: URL, for browser: Browser, front: Bool = true) {
-        let tab = Tab(configuration: Web.configuration(space: browser.spaceID))
+        let tab = browser.blankTab(space: browser.spaceID)
         browser.prepare(tab)
         tab.go(to: url)
         let little = LittleWindow(tab: tab, browser: browser)

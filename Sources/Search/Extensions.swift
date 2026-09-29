@@ -1634,7 +1634,7 @@ final class ExtensionWindow: NSObject, WKWebExtensionWindow {
     func windowType(for context: WKWebExtensionContext) -> WKWebExtension.WindowType {
         browser?.extensionPopup != nil ? .popup : .normal
     }
-    func isPrivate(for context: WKWebExtensionContext) -> Bool { false }
+    func isPrivate(for context: WKWebExtensionContext) -> Bool { browser?.isPrivate ?? false }
 
     func windowState(for context: WKWebExtensionContext) -> WKWebExtension.WindowState {
         guard let window = nsWindow else { return .normal }

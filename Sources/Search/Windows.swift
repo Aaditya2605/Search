@@ -96,7 +96,8 @@ enum Browsers {
     /// under (#204); a test run's own.
     static let sceneID = Store.world.map { "search (\($0))" } ?? "search"
 
-    static var primary: Browser? { all.first }
+    /// Never a private window: its tabs aren't tomorrow's.
+    static var primary: Browser? { all.first { !$0.isPrivate } }
     static var front: Browser? { Front.shared.browser ?? all.last }
     /// The browser to act on when a menu or a link needs one.
     static var acting: Browser { front ?? SceneSlot.shared.browser }
@@ -135,6 +136,14 @@ enum Browsers {
         }
         let browser = Browser(record: WindowRecord(space: front?.spaceID ?? Space.firstID))
         open(browser, frame: nil)
+    }
+
+    /// ⇧⌘N. A window whose tabs are all private and share one jar, which
+    /// goes with the window: nothing of it is saved, and closed, it's gone.
+    static func newPrivateWindow() {
+        let browser = Browser(record: WindowRecord(space: front?.spaceID ?? Space.firstID), isPrivate: true)
+        open(browser, frame: nil)
+        browser.announce("A window that keeps nothing")
     }
 
     /// Brings a browser's window on screen, the scene's included.
@@ -242,12 +251,15 @@ enum Browsers {
     static func closing(_ window: NSWindow) {
         guard !quitting, let browser = browser(for: window) else { return }
         browser.cancelFileImport()
-        // An extension's popup goes, and isn't one ⇧⌘T brings back.
-        if browser.extensionPopup != nil {
+        // An extension's popup goes, and isn't one ⇧⌘T brings back. Nor is a
+        // private window, which keeps nothing, closed last or not.
+        if browser.extensionPopup != nil || browser.isPrivate {
             retire(browser, remembered: false)
             return
         }
-        let others = all.filter { $0 !== browser && $0.isOpen && $0.extensionPopup == nil }
+        // A private window isn't one of the others: the last ordinary window
+        // is kept as it always was.
+        let others = all.filter { $0 !== browser && $0.isOpen && $0.extensionPopup == nil && !$0.isPrivate }
         guard !others.isEmpty else {
             // The last one: kept, tabs and all, and written down now.
             browser.shut = true
@@ -260,7 +272,7 @@ enum Browsers {
 
     private static func retire(_ browser: Browser, remembered: Bool = true) {
         let wasPrimary = browser === primary
-        if remembered {
+        if remembered, !browser.isPrivate {
             closed.append((record(of: browser, rows: true), Date()))
             if closed.count > 10 { closed.removeFirst(closed.count - 10) }
         }
@@ -304,9 +316,13 @@ enum Browsers {
 
     private static var file: URL { Store.file("windows.json") }
 
-    /// The windows that are written down, the oldest first: every one but an
-    /// extension's popups, which never come back.
-    static var saved: [Browser] { all.enumerated().filter { $0.offset == 0 || $0.element.extensionPopup == nil }.map(\.element) }
+    /// The windows that are written down, the oldest ordinary one first:
+    /// every one but an extension's popups, which never come back, and
+    /// private windows, which keep nothing.
+    static var saved: [Browser] {
+        guard let primary else { return [] }
+        return [primary] + all.filter { $0 !== primary && $0.extensionPopup == nil && !$0.isPrivate }
+    }
 
     /// windows.json: the oldest window's frame and space first, then every
     /// other window whole.
