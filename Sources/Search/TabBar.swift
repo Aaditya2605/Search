@@ -734,6 +734,9 @@ struct TabAddressField: NSViewRepresentable {
         field.textColor = Palette.NS.ink
         field.cell?.usesSingleLineMode = true
         field.cell?.wraps = false
+        // NSTextField() clips, unlike NSTextField(string:): without this the
+        // text stays put however far ← and → take the caret.
+        field.cell?.isScrollable = true
         field.stringValue = browser.tabDraft
         context.coordinator.watch(field)
         // The site card stands under whichever field the address is in.
