@@ -14,7 +14,9 @@ import SwiftUI
 extension Browser {
     /// Shift-click on a link, from a tab in the row.
     func peek(_ url: URL, from tab: Tab) {
-        let page = Tab(shy: tab.shy)
+        // A private tab's peek shares its jar: in a private window, the
+        // window's sign-ins.
+        let page = Tab(shy: tab.shy, configuration: tab.shy ? Web.configuration(shy: true, store: tab.store) : nil)
         prepare(page)
         page.go(to: url)
         withAnimation(Motion.settle) { peekTab = page }

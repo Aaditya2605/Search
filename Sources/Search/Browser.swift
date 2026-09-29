@@ -990,6 +990,12 @@ final class Browser: NSObject, ObservableObject {
     func nameWindow() { window?.title = active?.label ?? "Search" }
     /// Its window closed and kept: the last one, closed with the app running.
     var shut = false
+    /// A private window's own jar. Every tab in it is private and shares
+    /// this, so a sign-in in one is there in the next, and it dies with the
+    /// window. Such a window is never saved, has no pins, and ⇧⌘T doesn't
+    /// bring it back (see Windows.swift).
+    private(set) var privateStore: WKWebsiteDataStore?
+    var isPrivate: Bool { privateStore != nil }
     /// Its window is there to be seen — on screen, or behind a hidden app.
     var isOpen: Bool { window != nil && !shut }
     /// Its saved state, for a window other than the oldest (see Windows.swift).
@@ -1005,8 +1011,9 @@ final class Browser: NSObject, ObservableObject {
 
     /// `record`: another window's, from windows.json or ⇧⌘T, or a new
     /// window's, empty.
-    init(record: WindowRecord?) {
+    init(record: WindowRecord?, isPrivate: Bool = false) {
         super.init()
+        if isPrivate { privateStore = .nonPersistent() }
         let first = !Browser.booted
         Browser.booted = true
         usesFiles = record == nil
@@ -1154,7 +1161,7 @@ final class Browser: NSObject, ObservableObject {
         var row: [Tab] = []
         for entry in saved.tabs {
             guard let url = URL(string: entry.url) else { continue }
-            let tab = Tab(configuration: Web.configuration(space: spaceID))
+            let tab = blankTab(space: spaceID)
             prepare(tab)
             tab.restore(url: url, title: entry.title, name: entry.name)
             tab.pin = entry.pin
@@ -1175,7 +1182,7 @@ final class Browser: NSObject, ObservableObject {
             // moment after the window is up, so that the first address typed
             // finds everything already running, and the first frame never
             // had to share the CPU with it.
-            let tab = Tab(configuration: Web.configuration(space: spaceID))
+            let tab = blankTab(space: spaceID)
             adopt(tab)
             activeID = tab.id
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak tab] in
@@ -1368,7 +1375,9 @@ final class Browser: NSObject, ObservableObject {
     /// pinned tab from before pins had ids is matched by letter and page,
     /// then by place.
     func reconcilePins(_ row: [Tab], space: UUID) -> [Tab] {
-        let defs = Pins.defs(space)
+        // Pins are kept on disk and shown in every window: none in a
+        // private one, where their pages would be the only thing kept.
+        let defs = isPrivate ? [] : Pins.defs(space)
         var pinned = row.filter { $0.pin != nil && !$0.shy }
         let loose = row.filter { $0.pin == nil || $0.shy }
         var out: [Tab] = []
@@ -1381,7 +1390,7 @@ final class Browser: NSObject, ObservableObject {
                 pinned.removeAll { $0 === found }
                 tab = found
             } else {
-                tab = Tab(configuration: Web.configuration(space: space))
+                tab = blankTab(space: space)
                 prepare(tab)
                 tab.restore(url: URL(string: def.home) ?? URL(string: "about:blank")!, title: def.title, name: def.name)
             }
@@ -1483,7 +1492,7 @@ final class Browser: NSObject, ObservableObject {
     private func takeAsleep(_ items: [(item: ArcSidebar.Item, folder: String?)], into space: UUID) -> Int {
         let grouping = prefs.usesTabGroups
         func asleep(_ item: ArcSidebar.Item) -> Tab {
-            let tab = Tab(configuration: Web.configuration(space: space))
+            let tab = blankTab(space: space)
             prepare(tab)
             tab.restore(url: item.url, title: item.title)
             return tab
@@ -1689,7 +1698,7 @@ final class Browser: NSObject, ObservableObject {
             rememberSession()
             return
         }
-        let tab = Tab(configuration: Web.configuration(space: spaceID))
+        let tab = blankTab(space: spaceID)
         adopt(tab)
         leaving()
         activeID = tab.id
@@ -1781,7 +1790,7 @@ final class Browser: NSObject, ObservableObject {
             if tab.isBlank {
                 NSApp.keyWindow?.performClose(nil)
             } else {
-                let fresh = Tab(configuration: Web.configuration(space: spaceID))
+                let fresh = blankTab(space: spaceID)
                 remember(tab, at: 0)
                 tab.close()
                 adopt(fresh)
@@ -1851,7 +1860,7 @@ final class Browser: NSObject, ObservableObject {
     /// One of them by name, from the History menu.
     func reopen(_ ghost: Ghost) {
         ghosts.removeAll { $0.id == ghost.id }
-        let tab = Tab(configuration: Web.configuration(space: spaceID))
+        let tab = blankTab(space: spaceID)
         prepare(tab)
         tab.groupID = prefs.usesTabGroups && tabGroups.contains(where: { $0.id == ghost.groupID })
             ? ghost.groupID : nil
@@ -1937,7 +1946,7 @@ final class Browser: NSObject, ObservableObject {
         }
         tabs.remove(at: index)
         removeEmptyGroup(tab.groupID)
-        if tabs.isEmpty { adopt(Tab(configuration: Web.configuration(space: spaceID))) }
+        if tabs.isEmpty { adopt(blankTab(space: spaceID)) }
 
         tab.rehome(in: id)
         // Its group stays behind: the space it goes to has groups of its own.
@@ -1965,7 +1974,8 @@ final class Browser: NSObject, ObservableObject {
         guard tab.pin == nil, !tab.bench, target !== self, tabs.contains(where: { $0.id == tab.id }),
               target != nil || tabs.count > 1 || !tab.isBlank
         else { return }
-        let destination = target ?? Browser(record: WindowRecord(space: spaceID))
+        // Out of a private window, into another private one.
+        let destination = target ?? Browser(record: WindowRecord(space: spaceID), isPrivate: isPrivate)
         detach(tab)
         destination.receive(tab)
         if target == nil {
@@ -1989,7 +1999,10 @@ final class Browser: NSObject, ObservableObject {
         guard tab.pin == nil, !tab.bench, let window,
               !window.frame.insetBy(dx: -12, dy: -12).contains(point)
         else { return false }
-        let over = Browsers.all.first { $0 !== self && $0.isOpen && $0.window?.frame.contains(point) == true }
+        // Not into a private window, unless the tab is private too.
+        let over = Browsers.all.first {
+            $0 !== self && $0.isOpen && (tab.shy || !$0.isPrivate) && $0.window?.frame.contains(point) == true
+        }
         guard over != nil || tabs.count > 1 else { return false }
         // After the drag has let go, not inside it.
         DispatchQueue.main.async { [weak self] in self?.moveToWindow(tab, over, at: point) }
@@ -2011,7 +2024,7 @@ final class Browser: NSObject, ObservableObject {
         tabs.remove(at: index)
         removeEmptyGroup(tab.groupID)
         tab.groupID = nil
-        if tabs.isEmpty { adopt(Tab(configuration: Web.configuration(space: spaceID))) }
+        if tabs.isEmpty { adopt(blankTab(space: spaceID)) }
         writeSession(now: true)
     }
 
@@ -2203,7 +2216,7 @@ final class Browser: NSObject, ObservableObject {
         let tab = if let source, source.shy, page == nil {
             Tab(shy: true, configuration: Web.configuration(shy: true, store: source.store))
         } else {
-            Tab(configuration: page ?? Web.configuration(space: spaceID))
+            page.map { Tab(configuration: $0) } ?? blankTab(space: spaceID)
         }
         prepare(tab)
         // A link opened from a grouped tab joins its group, only while groups
@@ -2340,6 +2353,13 @@ final class Browser: NSObject, ObservableObject {
 
     /// ⌘⇧N. A tab that keeps nothing — its own cookies, its own sign-ins, no
     /// history, and no place in tomorrow's session.
+    /// A tab for this window: private, in the window's own jar, when the
+    /// window is.
+    func blankTab(space: UUID) -> Tab {
+        if let privateStore { return Tab(shy: true, configuration: Web.configuration(shy: true, store: privateStore)) }
+        return Tab(configuration: Web.configuration(space: space))
+    }
+
     func newShyTab() {
         // Never two empty private tabs, as ⌘T never makes two empty ones:
         // one already open comes to the end of the row and is the one opened.
@@ -2355,7 +2375,7 @@ final class Browser: NSObject, ObservableObject {
             focusRequest += 1
             return
         }
-        let tab = Tab(shy: true)
+        let tab = Tab(shy: true, configuration: privateStore.map { Web.configuration(shy: true, store: $0) })
         adopt(tab)
         leaving()
         activeID = tab.id
@@ -2421,7 +2441,7 @@ final class Browser: NSObject, ObservableObject {
         var row: [Tab] = []
         for entry in saved.tabs {
             guard let url = URL(string: entry.url) else { continue }
-            let tab = Tab(configuration: Web.configuration(space: space))
+            let tab = blankTab(space: space)
             prepare(tab)
             tab.restore(url: url, title: entry.title, name: entry.name)
             tab.pin = entry.pin

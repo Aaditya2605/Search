@@ -116,11 +116,18 @@ final class Links: NSObject, NSApplicationDelegate {
         let item = NSMenuItem(title: "New Window", action: #selector(newWindow), keyEquivalent: "")
         item.target = self
         menu.addItem(item)
+        let shy = NSMenuItem(title: "New Private Window", action: #selector(newPrivateWindow), keyEquivalent: "")
+        shy.target = self
+        menu.addItem(shy)
         return menu
     }
 
     @objc private func newWindow() {
         MainActor.assumeIsolated { Browsers.newWindow() }
+    }
+
+    @objc private func newPrivateWindow() {
+        MainActor.assumeIsolated { Browsers.newPrivateWindow() }
     }
 
     /// The browser, once it has a window. Anything that came earlier is

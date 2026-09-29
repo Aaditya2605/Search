@@ -504,6 +504,7 @@ final class Bench {
             let n = (request["n"] as? Int).map { $0 - 1 }
             switch request["action"] as? String {
             case "new": Browsers.newWindow()
+            case "private": Browsers.newPrivateWindow()
             case "close":
                 guard let n, Browsers.all.indices.contains(n) else { answer(["error": "no window \((n ?? -1) + 1)"]); return }
                 Browsers.all[n].window?.close()
@@ -525,7 +526,7 @@ final class Bench {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 answer(["windows": Browsers.all.enumerated().map { index, b -> [String: Any] in
                     [
-                        "n": index + 1, "front": b === Browsers.front, "scene": b.inScene,
+                        "n": index + 1, "front": b === Browsers.front, "scene": b.inScene, "private": b.isPrivate,
                         "shown": b.window?.isVisible ?? false, "files": b.usesFiles,
                         "space": b.space.name, "tabs": b.tabs.map { $0.address?.absoluteString ?? "" },
                         "pins": b.tabs.filter { $0.pin != nil }.map { $0.pin ?? "" },

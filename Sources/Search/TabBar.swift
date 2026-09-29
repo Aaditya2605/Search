@@ -893,7 +893,8 @@ struct TabMenu: View {
         }
         if tab.pin == nil, !tab.bench {
             // Another window, or a new one (see Browser.moveToWindow).
-            let others = Browsers.all.filter { $0 !== browser && $0.isOpen }
+            // Not into a private window, unless the tab is private too.
+            let others = Browsers.all.filter { $0 !== browser && $0.isOpen && (tab.shy || !$0.isPrivate) }
             if others.isEmpty {
                 Button("Move to New Window") { browser.moveToWindow(tab, nil) }
                     .disabled(browser.tabs.count < 2)

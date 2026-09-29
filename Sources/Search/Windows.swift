@@ -96,7 +96,8 @@ enum Browsers {
     /// under (#204); a test run's own.
     static let sceneID = Store.world.map { "search (\($0))" } ?? "search"
 
-    static var primary: Browser? { all.first }
+    /// Never a private window: its tabs aren't tomorrow's.
+    static var primary: Browser? { all.first { !$0.isPrivate } }
     static var front: Browser? { Front.shared.browser ?? all.last }
     /// The browser to act on when a menu or a link needs one.
     static var acting: Browser { front ?? SceneSlot.shared.browser }
@@ -135,6 +136,14 @@ enum Browsers {
         }
         let browser = Browser(record: WindowRecord(space: front?.spaceID ?? Space.firstID))
         open(browser, frame: nil)
+    }
+
+    /// ⇧⌘N. A window whose tabs are all private and share one jar, which
+    /// goes with the window: nothing of it is saved, and closed, it's gone.
+    static func newPrivateWindow() {
+        let browser = Browser(record: WindowRecord(space: front?.spaceID ?? Space.firstID), isPrivate: true)
+        open(browser, frame: nil)
+        browser.announce("A window that keeps nothing")
     }
 
     /// Brings a browser's window on screen, the scene's included.
@@ -203,7 +212,13 @@ enum Browsers {
 
     static func closing(_ window: NSWindow) {
         guard !quitting, let browser = browser(for: window) else { return }
-        let others = all.filter { $0 !== browser && $0.isOpen }
+        // A private window keeps nothing, closed last or not. Nor is it one
+        // of the others: the last ordinary window is kept as it always was.
+        if browser.isPrivate {
+            retire(browser)
+            return
+        }
+        let others = all.filter { $0 !== browser && $0.isOpen && !$0.isPrivate }
         guard !others.isEmpty else {
             // The last one: kept, tabs and all, and written down now.
             browser.shut = true
@@ -216,8 +231,10 @@ enum Browsers {
 
     private static func retire(_ browser: Browser) {
         let wasPrimary = browser === primary
-        closed.append((record(of: browser, rows: true), Date()))
-        if closed.count > 10 { closed.removeFirst(closed.count - 10) }
+        if !browser.isPrivate {
+            closed.append((record(of: browser, rows: true), Date()))
+            if closed.count > 10 { closed.removeFirst(closed.count - 10) }
+        }
         all.removeAll { $0 === browser }
         if #available(macOS 15.4, *) { Extensions.shared.detach(browser) }
         browser.closeAll()
@@ -262,7 +279,9 @@ enum Browsers {
         guard let primary else { return }
         var records = [record(of: primary, rows: false)]
         records[0].rows = [:]
-        for browser in all.dropFirst() { records.append(record(of: browser, rows: true)) }
+        for browser in all where browser !== primary && !browser.isPrivate {
+            records.append(record(of: browser, rows: true))
+        }
         // Frozen before it goes to the Disk queue.
         let snapshot = records
         Disk.write(file, now: now) { try? JSONEncoder().encode(snapshot) }

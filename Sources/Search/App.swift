@@ -38,6 +38,8 @@ struct SearchApp: App {
                 // Another window, with tabs of its own (see Windows.swift).
                 Button("New Window") { Browsers.newWindow() }
                     .shortcut("file.newWindow")
+                Button("New Private Window") { Browsers.newPrivateWindow() }
+                    .shortcut("file.newPrivateWindow")
                 Button("New Tab") { browser.newTab() }
                     .shortcut("file.newTab")
                 Button("New Private Tab") { browser.newShyTab() }

@@ -1320,7 +1320,7 @@ final class ExtensionWindow: NSObject, WKWebExtensionWindow {
 
     func activeTab(for context: WKWebExtensionContext) -> (any WKWebExtensionTab)? { browser.flatMap(owner.activeAdapter(of:)) }
     func windowType(for context: WKWebExtensionContext) -> WKWebExtension.WindowType { .normal }
-    func isPrivate(for context: WKWebExtensionContext) -> Bool { false }
+    func isPrivate(for context: WKWebExtensionContext) -> Bool { browser?.isPrivate ?? false }
 
     func windowState(for context: WKWebExtensionContext) -> WKWebExtension.WindowState {
         guard let window = nsWindow else { return .normal }

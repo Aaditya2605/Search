@@ -11,6 +11,10 @@ in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Added
+
+- Private windows: ⇧⌘N, or New Private Window in the File menu and the Dock's menu, opens a window whose tabs are all private. They share one set of cookies and sign-ins, so signing in on one tab signs in the next, and all of it goes when the window closes. A private window has no pinned tabs, is never saved, and ⇧⌘T doesn't bring it back. A tab can't be moved into one unless it's private too. New Private Tab moves to ⌥⇧⌘N. Extensions are told the window is private.
+
 ### Fixed
 
 - A site shown inside another site's page keeps its cookies, as in Chrome. A Kaltura video in a Brightspace course said "your browser is blocking 3rd party session cookies" and did not play. Sites that WebKit has seen tracking people from site to site are still blocked, and the ad blocker still stops known trackers before they load
