@@ -11,6 +11,10 @@ in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Fixed
+
+- The tab you're on can be closed with a click when the tabs are down to their icons: with the pointer on it, its icon becomes the cross, as in Chrome. The other tabs keep their icon, so a click to go to one never closes it. Before, only ⌘W, a middle-click or the menu closed a tab that narrow.
+
 ## 1.0.4 — 27 September 2026
 
 ### Added
