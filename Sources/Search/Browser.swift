@@ -37,6 +37,7 @@ final class Browser: NSObject, ObservableObject {
     @Published var editingGroupID: UUID?
     @Published var activeID: Tab.ID? {
         didSet {
+            nameWindow()
             // The tab just left is the tab just looked at. Whether a tab has
             // gone unwatched long enough to sleep is counted from here, not
             // from when it was first picked.
@@ -978,8 +979,15 @@ final class Browser: NSObject, ObservableObject {
     var inScene = false
     /// Its window, once it has one.
     weak var window: NSWindow? {
-        didSet { if window != nil { shut = false } }
+        didSet {
+            if window != nil { shut = false }
+            nameWindow()
+        }
     }
+
+    /// The window goes by the tab on screen, as in Safari: that is its line in
+    /// the Dock's menu and the Window menu. The title bar never shows it.
+    func nameWindow() { window?.title = active?.label ?? "Search" }
     /// Its window closed and kept: the last one, closed with the app running.
     var shut = false
     /// Its window is there to be seen — on screen, or behind a hidden app.
@@ -2658,6 +2666,17 @@ final class Browser: NSObject, ObservableObject {
             .sink { [weak self, weak tab] title in
                 guard let tab, !tab.shy, let url = tab.address else { return }
                 self?.history.retitle(url, title)
+            }
+            .store(in: &bag)
+
+        // The window's name follows the tab's: the name you gave it, the page's
+        // title, or its address until it has one. Read after the change:
+        // @Published tells just before it.
+        Publishers.CombineLatest3(tab.$title, tab.$address, tab.$name)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak tab] _ in
+                guard let self, tab?.id == self.activeID else { return }
+                nameWindow()
             }
             .store(in: &bag)
     }

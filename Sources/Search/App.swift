@@ -796,6 +796,10 @@ struct ContentView: View {
     private func dress(_ window: NSWindow) {
         browser.window = window
         window.tabbingMode = .disallowed
+        // SwiftUI keeps its Window scene out of the Dock's menu and the Window
+        // menu, and a window with no title is left out of both. With more than
+        // one window, each has to be there to be found (see nameWindow).
+        window.isExcludedFromWindowsMenu = false
         // Light or dark is the app's to say (Settings › Appearance); the
         // window only has to be the ground colour that goes with it.
         window.titlebarAppearsTransparent = true
