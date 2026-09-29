@@ -1400,6 +1400,8 @@ final class PageView: WKWebView {
     /// What extensions added to the right-click menu, at the end of it.
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
+        // A click opens the link already, so the menu does not offer it.
+        menu.items.removeAll { $0.identifier?.rawValue == "WKMenuItemIdentifierOpenLink" }
         // WebKit names it for a window, but a new window's page arrives here
         // as a new tab (Browser's createWebViewWith), so it says so.
         if let item = menu.items.first(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierOpenLinkInNewWindow" }) {
