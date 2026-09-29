@@ -99,6 +99,9 @@ struct TabBar: View {
                                 .onAppear { reveal(reader, in: geo.size.width) }
                                 .onChange(of: overflowing(in: geo.size.width)) { _, _ in reveal(reader, in: geo.size.width) }
                                 .onChange(of: browser.activeID) { _, _ in reveal(reader, in: geo.size.width, gliding: true) }
+                                .onChange(of: browser.editingTab) { _, id in
+                                    if id != nil { reveal(reader, in: geo.size.width, gliding: true) }
+                                }
                             }
                                 .offset(y: browser.spaceSwipe)
                         }
@@ -232,8 +235,11 @@ struct TabBar: View {
     /// Brings the tab you are on into view once the run scrolls: at once
     /// when the window first shows it, on the strip's spring when you pick
     /// another. A turn of the run loop later, so the run has been laid out.
+    /// A tab being edited comes first, the whole of the field it grows into:
+    /// the run scrolled for its old width kept the end of the address past
+    /// the row's edge.
     private func reveal(_ reader: ScrollViewProxy, in strip: CGFloat, gliding: Bool = false) {
-        guard overflowing(in: strip), let id = browser.activeID else { return }
+        guard overflowing(in: strip), let id = browser.editingTab ?? browser.activeID else { return }
         DispatchQueue.main.async {
             if gliding {
                 withAnimation(Motion.glide) { reader.scrollTo(id) }

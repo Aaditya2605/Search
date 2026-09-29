@@ -13,6 +13,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- The address field a tab grows into shows whole when the tabs overflow the row: the row now scrolls to it. Before, it stayed where it was for the tab's old width, so the end of the field, and the end of the address with it, sat past the row's edge.
 - The address being edited in a tab scrolls with the caret: the field was as wide as the whole address and the row cut it off, so ← and → moved the caret out of sight and the end of a long address never showed. Thanks [@StefanTodorov32](https://github.com/StefanTodorov32) ([#421](https://github.com/driceroland/Search/pull/421), [#419](https://github.com/driceroland/Search/issues/419))
 - The tab you're on can be closed with a click when the tabs are down to their icons: with the pointer on it, its icon becomes the cross, as in Chrome. The other tabs keep their icon, so a click to go to one never closes it. Before, only ⌘W, a middle-click or the menu closed a tab that narrow.
 
