@@ -1504,6 +1504,8 @@ final class PageView: WKWebView {
     /// page in it itself; Search adding them again showed each one twice.
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
+        // A click opens the link already, so the menu does not offer it.
+        if let open = menu.items.first(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierOpenLink" }) { menu.removeItem(open) }
         // WebKit names it for a window, but a new window's page arrives here
         // as a new tab (Browser's createWebViewWith), so it says so. The tab
         // stays behind this one, as in Safari and Chrome, and as a ⌘-click's
