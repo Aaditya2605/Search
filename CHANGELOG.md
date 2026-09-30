@@ -17,6 +17,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- A build of Search without Apple's passkey entitlement, such as one built from source, no longer offers passkeys after a release has run on the same Mac. The release had turned Offer passkeys on, the other build kept it on, and every site's passkey then said "Authentication failed". Now the switch follows the build each time it changes.
 - Prevent cross-site tracking, turned off in Settings › Privacy, lets a site shown inside another site's page keep its cookies, as the switch says. WebKit's own cookie policy still dropped them, so a Kaltura video in a Brightspace course said "your browser is blocking 3rd party session cookies" with the switch off too
 - Download Linked File in a link's right-click menu saves the file. It did nothing: WebKit fetched the file and had nowhere to put it.
 - A game played on the arrow keys, or any page that reads keys without taking them, no longer makes the Mac beep on each press. Search kept only the last key quiet, so keys pressed quickly or held down beeped, and WebKit hands most such keys to the view around the page rather than back to the page, where nothing wanted them and they fell off the end of the responder chain. Pages that scroll still scroll with the arrows, page up and down and the space bar. Thanks [@pyrossh](https://github.com/pyrossh) for reporting and [@Chahine-tech](https://github.com/Chahine-tech) for the fix ([#402](https://github.com/driceroland/Search/issues/402), [#410](https://github.com/driceroland/Search/pull/410))

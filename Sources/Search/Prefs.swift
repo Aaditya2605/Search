@@ -335,12 +335,14 @@ final class Preferences: ObservableObject {
         // one with Apple's browser entitlement and its profile embedded. A
         // choice made while they couldn't work is not a choice about them:
         // the first run of a build that can offers them, whatever was set
-        // before; from then on the switch is the person's.
+        // before; from then on the switch is the person's. The same the other
+        // way: a build that can't (one built from source, after a release)
+        // stops offering them, or every site's passkey fails.
         let entitled = Preferences.entitledToPasskeys
         passkeysPossible = entitled
-        if entitled, !store.bool(forKey: "passkeys.entitled") {
-            passkeys = true
-            store.set(true, forKey: "passkeys")
+        if entitled != store.bool(forKey: "passkeys.entitled") {
+            passkeys = entitled
+            store.set(entitled, forKey: "passkeys")
         } else {
             passkeys = store.object(forKey: "passkeys") as? Bool ?? entitled
         }
