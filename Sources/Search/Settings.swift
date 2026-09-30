@@ -468,12 +468,13 @@ struct SettingsPanel: View {
                 Line(
                     "Offer passkeys",
                     !prefs.passkeysPossible
-                        ? "Needs an Apple entitlement this build doesn't have — off keeps sites to the password"
+                        ? "Needs an Apple entitlement this build doesn't have, so sites ask for a password"
                         : Passkeys.access == .denied
                         ? "macOS was told no — System Settings › Privacy & Security › Passkeys Access for Web Browsers"
                         : "Touch ID or an iCloud passkey, on sites that offer one"
                 ) {
-                    Switch(on: $prefs.passkeys)
+                    // On, in a build without the entitlement, every passkey fails.
+                    if prefs.passkeysPossible { Switch(on: $prefs.passkeys) }
                 }
                 if !Vault.never.isEmpty {
                     Rule()
