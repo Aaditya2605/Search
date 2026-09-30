@@ -3250,6 +3250,14 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
         dropEmpty(webView)
     }
 
+    /// Download Linked File in the right-click menu. WebKit starts the
+    /// download and hands it to a delegate that answers this name, outside
+    /// the public framework; unanswered, the file was fetched and went nowhere.
+    @objc(_webView:contextMenuDidCreateDownload:)
+    func webView(_ webView: WKWebView, contextMenuDidCreateDownload download: WKDownload) {
+        keep(download)
+    }
+
     /// A tab that has shown nothing, and whose first page turned out to be a
     /// file: a download link that opens in a new tab, as a course site's
     /// attachments do. The file goes on arriving without it. Kept, the tab

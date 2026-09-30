@@ -17,6 +17,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- Download Linked File in a link's right-click menu saves the file. It did nothing: WebKit fetched the file and had nowhere to put it.
 - A site shown inside another site's page keeps its cookies, as in Chrome. A Kaltura video in a Brightspace course said "your browser is blocking 3rd party session cookies" and did not play. Sites that WebKit has seen tracking people from site to site are still blocked, and the ad blocker still stops known trackers before they load
 - A game played on the arrow keys, or any page that reads keys without taking them, no longer makes the Mac beep on each press. Search kept only the last key quiet, so keys pressed quickly or held down beeped, and WebKit hands most such keys to the view around the page rather than back to the page, where nothing wanted them and they fell off the end of the responder chain. Pages that scroll still scroll with the arrows, page up and down and the space bar. Thanks [@pyrossh](https://github.com/pyrossh) for reporting and [@Chahine-tech](https://github.com/Chahine-tech) for the fix ([#402](https://github.com/driceroland/Search/issues/402), [#410](https://github.com/driceroland/Search/pull/410))
 - Every window is in the Dock's menu and the Window menu, by the name of the tab on screen, or its address until it has a title, as in Safari. With more than one window, none were there, so the one you wanted could not be picked from either. The title bar still shows no name.
