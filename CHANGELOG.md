@@ -11,6 +11,10 @@ in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Fixed
+
+- Prevent cross-site tracking, turned off in Settings › Privacy, lets a site shown inside another site's page keep its cookies, as the switch says. WebKit's own cookie policy still dropped them, so a Kaltura video in a Brightspace course said "your browser is blocking 3rd party session cookies" with the switch off too. Thanks [@Aaditya2605](https://github.com/Aaditya2605) ([#550](https://github.com/driceroland/Search/pull/550))
+
 ### Held back
 
 Not in this version, kept on main for a later one:
