@@ -142,18 +142,20 @@ enum Web {
     /// Kaltura video inside a Brightspace course said only "your browser is
     /// blocking 3rd party session cookies". Both halves are needed: the
     /// store's own policy takes cookies only from the page's own site, and
-    /// tracking prevention blocks every other site besides. It still blocks
-    /// the sites it has seen tracking people from site to site, and Shield
-    /// stops the known trackers before they load. The names are outside the
-    /// public framework, so they are asked first.
+    /// tracking prevention blocks every other site besides. Tracking
+    /// prevention is off altogether, as in Chrome: its milder mode still
+    /// blocks every site it has marked a tracker, and it had marked
+    /// kaltura.com, only for being in other sites' pages. Shield still stops
+    /// the known trackers before they load. The names are outside the public
+    /// framework, so they are asked first.
     static func crossSiteCookies(_ store: WKWebsiteDataStore) {
-        let mode = NSSelectorFromString("_setThirdPartyCookieBlockingMode:onlyOnSitesWithoutUserInteraction:completionHandler:")
+        let tracking = NSSelectorFromString("_setResourceLoadStatisticsEnabled:")
         let policy = NSSelectorFromString("_setCookieAcceptPolicy:completionHandler:")
         let jar = store.httpCookieStore
-        guard store.responds(to: mode), jar.responds(to: policy) else { return }
-        typealias Mode = @convention(c) (AnyObject, Selector, Bool, Bool, @escaping @convention(block) () -> Void) -> Void
+        guard store.responds(to: tracking), jar.responds(to: policy) else { return }
+        typealias Tracking = @convention(c) (AnyObject, Selector, Bool) -> Void
         typealias Policy = @convention(c) (AnyObject, Selector, UInt, @escaping @convention(block) () -> Void) -> Void
-        unsafeBitCast(store.method(for: mode), to: Mode.self)(store, mode, false, false) {}
+        unsafeBitCast(store.method(for: tracking), to: Tracking.self)(store, tracking, false)
         unsafeBitCast(jar.method(for: policy), to: Policy.self)(jar, policy, HTTPCookie.AcceptPolicy.always.rawValue) {}
     }
 }
