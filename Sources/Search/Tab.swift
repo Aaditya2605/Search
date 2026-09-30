@@ -136,28 +136,6 @@ enum Web {
         typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
         unsafeBitCast(preferences.method(for: set), to: Setter.self)(preferences, set, on)
     }
-
-    /// A site shown inside another site's page keeps its cookies, the way
-    /// Chrome has it. WebKit's default drops every one of them, and a
-    /// Kaltura video inside a Brightspace course said only "your browser is
-    /// blocking 3rd party session cookies". Both halves are needed: the
-    /// store's own policy takes cookies only from the page's own site, and
-    /// tracking prevention blocks every other site besides. Tracking
-    /// prevention is off altogether, as in Chrome: its milder mode still
-    /// blocks every site it has marked a tracker, and it had marked
-    /// kaltura.com, only for being in other sites' pages. Shield still stops
-    /// the known trackers before they load. The names are outside the public
-    /// framework, so they are asked first.
-    static func crossSiteCookies(_ store: WKWebsiteDataStore) {
-        let tracking = NSSelectorFromString("_setResourceLoadStatisticsEnabled:")
-        let policy = NSSelectorFromString("_setCookieAcceptPolicy:completionHandler:")
-        let jar = store.httpCookieStore
-        guard store.responds(to: tracking), jar.responds(to: policy) else { return }
-        typealias Tracking = @convention(c) (AnyObject, Selector, Bool) -> Void
-        typealias Policy = @convention(c) (AnyObject, Selector, UInt, @escaping @convention(block) () -> Void) -> Void
-        unsafeBitCast(store.method(for: tracking), to: Tracking.self)(store, tracking, false)
-        unsafeBitCast(jar.method(for: policy), to: Policy.self)(jar, policy, HTTPCookie.AcceptPolicy.always.rawValue) {}
-    }
 }
 
 /// WKWebView can pause a page's media, but not mute it and let it keep
@@ -573,7 +551,6 @@ final class Tab: ObservableObject, Identifiable {
         // made with the tab, often long before its page, and a site or an
         // extension can hand over one of its own.
         FrameRate.apply(to: configuration.preferences)
-        Web.crossSiteCookies(configuration.websiteDataStore)
         let web = PageView(frame: .zero, configuration: configuration)
         // The trackpad pinch is WebKit's own: it magnifies what is on screen
         // and lets you move around inside it, the way pinching does everywhere
