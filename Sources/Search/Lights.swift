@@ -95,6 +95,7 @@ final class Lights: NSObject {
             container.frame = frame
         }
         // Only the row moves; the spacing is AppKit's, from its first layout.
+        var missed = false
         for (index, button) in buttons.enumerated() {
             let size = button.frame.size
             let origin = NSPoint(
@@ -102,7 +103,12 @@ final class Lights: NSObject {
                 y: bar.bounds.height - Lights.centre.y - size.height / 2
             )
             if button.frame.origin != origin { button.setFrameOrigin(origin) }
+            if button.frame.origin != origin { missed = true }
         }
+        // A new title has AppKit lay the three out again, the zoom button
+        // last, and set from inside its own frame change, its origin doesn't
+        // stick. So once AppKit is done, again.
+        if missed { DispatchQueue.main.async { [weak self] in self?.place() } }
         moved()
     }
 }
