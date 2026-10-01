@@ -1411,7 +1411,11 @@ struct BookmarksPanel: View {
 final class BookmarkMenu: NSObject, NSMenuDelegate {
     static let shared = BookmarkMenu()
 
-    private weak var browser: Browser?
+    /// The window whose bookmarks the menu lists and a bookmark opens in:
+    /// the one in front. Not the first one, held: closed while others stay
+    /// open, that one is let go (Browsers.retire), and the menu was empty.
+    private var browser: Browser? { Browsers.front }
+    private var started = false
     private var watch: [Any] = []
     private let relay = Relay()
     /// What each folder's submenu holds, until it opens.
@@ -1419,9 +1423,9 @@ final class BookmarkMenu: NSObject, NSMenuDelegate {
     /// The items put in here, among SwiftUI's own.
     fileprivate static let mark = 0x5EAC
 
-    func start(for browser: Browser) {
-        guard self.browser == nil else { return }
-        self.browser = browser
+    func start() {
+        guard !started else { return }
+        started = true
         relay.after = { [weak self] menu in self?.fill(menu) }
         // SwiftUI puts its own delegate back whenever it updates the menu
         // bar, which is whenever anything in the window changes. So: after
