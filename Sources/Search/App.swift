@@ -297,11 +297,17 @@ private final class CursorGroundView: NSView {
     }
 }
 
+private final class WeakWindow {
+    weak var window: NSWindow?
+}
+
 struct ContentView: View {
     @ObservedObject var browser: Browser
 
-    @State private var keys: Any?
-    @State private var window: NSWindow?
+    /// Its window, held weakly: the window holds this view's state, and
+    /// held strongly back, a window closed for good was never freed.
+    @State private var held = WeakWindow()
+    private var window: NSWindow? { held.window }
     @State private var resting: RestingLights?
     /// The room the page leaves for the column and the strip, set without
     /// animation (see `make(room:after:)`); nil only before the window is up.
@@ -552,7 +558,7 @@ struct ContentView: View {
             // is pressed the page is on its way, and the field is not what
             // there is to watch.
             .animation(browser.fieldShowing ? Motion.settle : Motion.quick, value: browser.fieldShowing)
-            .background(WindowSetup { window = $0; dress($0) })
+            .background(WindowSetup { held.window = $0; dress($0) })
             .onChange(of: browser.prefs.sidebar) { _, _ in
                 DispatchQueue.main.async { Lights.refresh(window); measureLights() }
             }
@@ -823,7 +829,7 @@ struct ContentView: View {
         // height, in both modes, without a toolbar's rounder corners — see
         // Lights.swift. The column's first row is the strip's height too, so
         // its three doors sit on the lights' line.
-        Lights.keep(window, centreX: {
+        Lights.keep(window, centreX: { window in
             browser.prefs.sidebar && browser.prefs.sidePosition == .right
                 ? window.frame.width - browser.prefs.sideWidth + Lights.centre.x
                 : Lights.centre.x
@@ -854,8 +860,9 @@ struct ContentView: View {
     /// the same commands for anyone looking for them, and never sees these
     /// keystrokes because this runs first.
     private func watchKeys() {
-        guard keys == nil else { return }
-        keys = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+        let id = ObjectIdentifier(browser)
+        if let old = ContentView.monitors[id] { NSEvent.removeMonitor(old) }
+        ContentView.monitors[id] = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
             // Every window has a monitor, and every monitor hears every key:
             // each takes only its own window's, and the one in front takes
             // those of windows that aren't a browser's (a panel, the little
@@ -872,7 +879,18 @@ struct ContentView: View {
             }
             return take(event) ? nil : event
         }
-        ContentView.keyHooks[ObjectIdentifier(browser)] = { event in take(event) ? nil : event }
+        ContentView.keyHooks[id] = { event in take(event) ? nil : event }
+    }
+
+    /// Each browser's key monitor. Kept here rather than in the view, so
+    /// that a window closed for good takes its monitor and hook with it
+    /// (see `forget`), and they no longer hold its browser.
+    private static var monitors: [ObjectIdentifier: Any] = [:]
+
+    static func forget(_ browser: Browser) {
+        let id = ObjectIdentifier(browser)
+        if let monitor = monitors.removeValue(forKey: id) { NSEvent.removeMonitor(monitor) }
+        keyHooks[id] = nil
     }
 
     /// Whether a key is this window's to act on.
