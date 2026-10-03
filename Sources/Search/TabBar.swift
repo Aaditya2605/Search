@@ -299,7 +299,8 @@ struct TabBar: View {
         var total = pinned * Metrics.pinWidth + loose * each
             + headingWidth + CGFloat(max(0, shown - 1)) * Metrics.tabGap
         if let id = browser.editingTab, let tab = browser.tabs.first(where: { $0.id == id }) {
-            total += min(340, strip - Metrics.lights - leading - 12) - (tab.pin != nil ? Metrics.pinWidth : each)
+            let own = tab.pin != nil ? Metrics.pinWidth : each
+            total += TabAddressField.width(for: browser.tabDraft, tab: own, room: strip - Metrics.lights - leading - 12) - own
         }
         return total
     }
@@ -426,8 +427,8 @@ private struct TabPill: View {
     /// A pinned tab is a square, an edited one is a field, everything else is
     /// its share of what is left.
     private var span: CGFloat {
-        if editing { return min(340, room) }
-        return pinned ? Metrics.pinWidth : width
+        let own = tab.pin != nil ? Metrics.pinWidth : width
+        return editing ? TabAddressField.width(for: browser.tabDraft, tab: own, room: room) : own
     }
 
     var body: some View {
@@ -531,10 +532,14 @@ private struct TabPill: View {
     }
 
     private var titled: some View {
-        HStack(spacing: 6) {
+        // Editing, the pill is the field and its margins alone: the gaps
+        // around the spacer and the empty cross would leave more room after
+        // the address than before it.
+        HStack(spacing: editing ? 0 : 6) {
             if editing {
                 TabAddressField(browser: browser)
                     .frame(height: 16)
+                    .layoutPriority(1)
             } else {
                 if prefs.glyph == .icons, !tab.isBlank {
                     Mark(icon: tab.icon, letter: tab.monogram, size: 15)
@@ -558,7 +563,7 @@ private struct TabPill: View {
                     .foregroundStyle(colour)
             }
 
-            Spacer(minLength: 2)
+            Spacer(minLength: editing ? 0 : 2)
 
             // The speaker, which can be pressed, is at the end of the pill on
             // its own, and one place in under the pointer, beside the cross
@@ -756,6 +761,17 @@ struct TabAddressField: NSViewRepresentable {
         let natural = field.intrinsicContentSize
         guard let width = proposal.width, width.isFinite else { return nil }
         return CGSize(width: max(0, width), height: proposal.height ?? natural.height)
+    }
+
+    /// The width a tab takes while its address is edited: as wide as the
+    /// address, so it grows out of the tab only as far as the text needs,
+    /// and with what is typed — never narrower than the tab, never wider
+    /// than 340, past which the text scrolls. 22 is the pill's margins, 11
+    /// a side; the field's own inset is too small to count, and the caret
+    /// at the end of the address still shows.
+    static func width(for draft: String, tab: CGFloat, room: CGFloat) -> CGFloat {
+        let text = (draft as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12.5)]).width
+        return min(340, room, max(tab, ceil(text) + 22))
     }
 
     func updateNSView(_ field: NSTextField, context: Context) {
