@@ -100,7 +100,10 @@ struct TabBar: View {
                                 .onChange(of: overflowing(in: geo.size.width)) { _, _ in reveal(reader, in: geo.size.width) }
                                 .onChange(of: browser.activeID) { _, _ in reveal(reader, in: geo.size.width, gliding: true) }
                                 .onChange(of: browser.editingTab) { _, id in
-                                    if id != nil { reveal(reader, in: geo.size.width, gliding: true) }
+                                    if id != nil { follow(reader, in: geo.size.width, until: CACurrentMediaTime() + 0.6) }
+                                }
+                                .onChange(of: browser.tabDraft) { _, _ in
+                                    if browser.editingTab != nil { reveal(reader, in: geo.size.width) }
                                 }
                             }
                                 .offset(y: browser.spaceSwipe)
@@ -246,6 +249,19 @@ struct TabBar: View {
             } else {
                 reader.scrollTo(id)
             }
+        }
+    }
+
+    /// The field a tab grows into, kept whole as it grows, by scrolling the
+    /// run every frame until the glide has settled: the tabs before it go
+    /// out to the left, and its end stays at the row's edge the whole way.
+    /// One scroll at the start found the run still about its old width and
+    /// stopped there, leaving the end of the address past the edge.
+    private func follow(_ reader: ScrollViewProxy, in strip: CGFloat, until end: CFTimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 120) {
+            guard let id = browser.editingTab, CACurrentMediaTime() < end else { return }
+            if overflowing(in: strip) { reader.scrollTo(id) }
+            follow(reader, in: strip, until: end)
         }
     }
 
