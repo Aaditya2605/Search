@@ -32,6 +32,7 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Fixed
 
+- Popovers keep their rounded corners before macOS 26: on macOS 15 the bookmarks list, the card for a bookmark, the extensions list and the site card showed square corners past their rounded edge. Asked for by email
 - Pinned extensions no longer push the column off the side. With more pinned than the bottom row had room for, the whole column slid left and was cut off at both edges, with the puzzle and bookmarks buttons out of reach. Now the pinned ones that don't fit give way, from the last, and are still in the puzzle's list; the space, puzzle, bookmarks and downloads buttons stay put. Thanks [@Vedaant-Rajoo](https://github.com/Vedaant-Rajoo) for the measurements that pointed straight at it ([#535](https://github.com/driceroland/Search/issues/535))
 - The Bookmarks menu keeps its bookmarks while a tab's title keeps changing. With a download page showing its speed in its title, they disappeared from the open menu at each change. Asked for by email
 - ⌃Tab brings up the switcher with its previews while Find is open, too: it used to skip straight to the next tab. The find bar stays open and looks for the same words on the tab you pick. Thanks [@rafe-sh](https://github.com/rafe-sh) for reporting it ([#553](https://github.com/driceroland/Search/issues/553))
