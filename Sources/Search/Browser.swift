@@ -341,7 +341,10 @@ final class Browser: NSObject, ObservableObject {
     @Published var assisting: Assistant?
     /// The Settings page it opens on next.
     var settingsPage: SettingsPanel.Page {
-        get { SettingsPanel.Page(rawValue: Store.settings.string(forKey: "settings.page") ?? "") ?? .general }
+        get {
+            let page = SettingsPanel.Page(rawValue: Store.settings.string(forKey: "settings.page") ?? "") ?? .general
+            return page == .ai && !AI.shipped ? .general : page
+        }
         set { Store.settings.set(newValue.rawValue, forKey: "settings.page") }
     }
     // The same words written back (the field does, as it appears) aren't
