@@ -429,6 +429,15 @@ struct DragStrip: NSViewRepresentable {
         private var pressed: NSEvent?
         private var moved = false
 
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            let still = Still(frame: bounds)
+            still.autoresizingMask = [.width, .height]
+            addSubview(still)
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
         /// The strip moves the window and answers the double-click itself.
         /// Left to say yes, AppKit takes both on too in the title bar the
         /// strip sits in, and a double-click answered twice — by AppKit on
@@ -479,6 +488,23 @@ struct DragStrip: NSViewRepresentable {
             default: window.zoom(nil)
             }
         }
+    }
+
+    /// Keeps the window server's own window drag off the strip, and off the
+    /// tabs on it. A movable window — and this one is, between presses (see
+    /// Browsers.watchFrames) — hands the window server the band along its
+    /// top, and a press there moves the window before the app has seen it:
+    /// a tab picked up by its top half took the window with it. The server
+    /// leaves to the app only what AppKit counts as taking its own clicks:
+    /// a view that would be first responder, has a mouseDown and won't move
+    /// the window. This one says all three and takes nothing — no click
+    /// reaches it, so it never becomes first responder either.
+    private final class Still: NSView {
+        override var acceptsFirstResponder: Bool { true }
+        override var canBecomeKeyView: Bool { false }
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func mouseDown(with event: NSEvent) {}
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 
