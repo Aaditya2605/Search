@@ -86,6 +86,7 @@ in [ROADMAP.md](ROADMAP.md).
 - Bringing Arc's spaces over keeps the names of its folders even when tab groups are off, as the session already keeps them: the folders were thrown away as they arrived, so turning tab groups on afterwards found nothing left and the only way back was to bring Arc over again. Thanks [@Chahine-tech](https://github.com/Chahine-tech) ([#478](https://github.com/driceroland/Search/issues/478), [#494](https://github.com/driceroland/Search/pull/494))
 - Download Linked File in a link's right-click menu saves the file. It did nothing: WebKit fetched the file and had nowhere to put it. Thanks [@Aaditya2605](https://github.com/Aaditya2605) ([#505](https://github.com/driceroland/Search/pull/505))
 - The folded column slides out over the page more smoothly, in full screen above all: its shadow was drawn again from every row and icon in it on each frame of the slide, down the column's whole height, and now falls from the plain ground under it, which looks the same. Thanks [@oddharsh](https://github.com/oddharsh) ([#499](https://github.com/driceroland/Search/pull/499))
+- The tab you're on can be closed with a click when the tabs are down to their icons: with the pointer on it, its icon becomes the cross, as in Chrome. The other tabs keep their icon, so a click to go to one never closes it. Before, only ⌘W, a middle-click or the menu closed a tab that narrow. Thanks [@Aaditya2605](https://github.com/Aaditya2605) ([#504](https://github.com/driceroland/Search/pull/504))
 
 ### Held back
 
