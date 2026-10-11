@@ -6,6 +6,7 @@ Build first (`./build.sh`), then `python3 Tests/cross_site_cookies.py`. It
 runs in split_view.py's test world, with its harness: started hidden,
 everything removed afterwards.
 """
+import subprocess
 import sys
 import threading
 import time
@@ -35,9 +36,14 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 srv = ThreadingHTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-def framed(**prefs):
+def framed(again=False, **prefs):
     """What the frame's server was sent and its script could read."""
-    sv.setup(**prefs); sv.launch()
+    if again:
+        # The run before's store kept: only the switch goes back on.
+        sv.quit(); subprocess.run(["defaults", "delete", sv.SUITE, "sites.keep"])
+    else:
+        sv.setup(**prefs)
+    sv.launch()
     id = sv.cmd({"do": "open", "url": f"http://127.0.0.1:{srv.server_port}/top"})["id"]
     for _ in range(20):
         time.sleep(0.5)
@@ -55,7 +61,7 @@ try:
     t.ok("prevention off: the frame's script reads its cookie", "read:session=1" in got, got)
     # The same store, which keeps what the switch did to it: on again, the
     # frame's cookie from before is not sent either.
-    got = framed()
+    got = framed(again=True)
     t.ok("prevention on again: the frame gets no cookie", got == "sent:none read:none", got)
 finally:
     t.done(); sv.finish()

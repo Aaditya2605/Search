@@ -69,21 +69,27 @@ enum Store {
     }
 
     /// The switch through a name outside the public framework — Safari's
-    /// "Prevent cross-site tracking" is the same one. Off, the store's
-    /// cookie policy is Always too: left as it was, it took cookies only
-    /// from the page's own site, and a site framed in another — a Kaltura
-    /// video in a Brightspace course — still got none. Back on, tracking
-    /// prevention blocks them again, whatever the policy says.
+    /// "Prevent cross-site tracking" is the same one.
     @MainActor static func followSignIns(_ store: WKWebsiteDataStore) {
+        followCookies(store)
         let set = NSSelectorFromString("_setResourceLoadStatisticsEnabled:")
         guard store.responds(to: set) else { return }
         typealias Setter = @convention(c) (AnyObject, Selector, Bool) -> Void
         unsafeBitCast(store.method(for: set), to: Setter.self)(store, set, !keepsSignIns)
+    }
+
+    /// Off, the store's cookie policy is Always too: left as it was, it took
+    /// cookies only from the page's own site, and a site framed in another —
+    /// a Kaltura video in a Brightspace course — still got none. WebKit keeps
+    /// the policy with the store, so it is set back when the switch is on, and
+    /// at launch for every store, which an earlier run may have left at Always.
+    @MainActor static func followCookies(_ store: WKWebsiteDataStore) {
         let jar = store.httpCookieStore
         let policy = NSSelectorFromString("_setCookieAcceptPolicy:completionHandler:")
-        guard keepsSignIns, jar.responds(to: policy) else { return }
+        guard jar.responds(to: policy) else { return }
         typealias Policy = @convention(c) (AnyObject, Selector, UInt, @escaping @convention(block) () -> Void) -> Void
-        unsafeBitCast(jar.method(for: policy), to: Policy.self)(jar, policy, HTTPCookie.AcceptPolicy.always.rawValue) {}
+        let accept: HTTPCookie.AcceptPolicy = keepsSignIns ? .always : .onlyFromMainDocumentDomain
+        unsafeBitCast(jar.method(for: policy), to: Policy.self)(jar, policy, accept.rawValue) {}
     }
 
     /// A test copy of the app under a bundle id of its own has a WebKit
