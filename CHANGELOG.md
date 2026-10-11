@@ -11,6 +11,10 @@ in [ROADMAP.md](ROADMAP.md).
 
 ## Unreleased
 
+### Fixed
+
+- A window closed while others stay open is let go. It stayed behind with its views, its browser and its key monitor, one more for every window opened and closed, and each closed window's monitor still ran on every key press and click. Thanks [@Aaditya2605](https://github.com/Aaditya2605) ([#549](https://github.com/driceroland/Search/pull/549))
+
 ### Held back
 
 Not in this version, kept on main for a later one:
