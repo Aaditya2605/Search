@@ -354,6 +354,14 @@ final class Fetches: ObservableObject {
         running[ObjectIdentifier(download)]?.entry?.destination
     }
 
+    /// Whether a download under way, in any window, is writing this file —
+    /// or one just told to go on, which WebKit hands back a moment later.
+    func writing(_ file: URL) -> Bool {
+        let path = file.resolvingSymlinksInPath().path
+        let going = running.values.compactMap(\.entry) + entries.filter { $0.state == .resuming }
+        return going.contains { $0.destination?.resolvingSymlinksInPath().path == path }
+    }
+
     /// Where the file is going, known: its progress is put on it, for the
     /// Finder's bar under the file and the Dock's Downloads stack.
     func going(_ download: WKDownload, to file: URL, cancel: @escaping @Sendable () -> Void) {

@@ -5096,8 +5096,20 @@ extension Browser: WKDownloadDelegate {
         panel.nameFieldStringValue = name
         panel.directoryURL = downloadsFolder
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK else { return nil }
-        return panel.url
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return clearing(url)
+    }
+
+    /// The file the panel said to save over, made ready for WebKit, which
+    /// won't write over a file: the panel asked "Replace?" already, so the
+    /// old one goes to the Trash, where it can be got back. A download still
+    /// writing it keeps it, and this one gains a number beside it.
+    func clearing(_ file: URL) -> URL {
+        guard !fetches.writing(file) else {
+            return Browser.free(file.lastPathComponent, in: file.deletingLastPathComponent())
+        }
+        try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
+        return file
     }
 
     private static func fileName(_ name: String) -> String {

@@ -220,6 +220,27 @@ final class DownloadLifecycleTests: XCTestCase {
         XCTAssertTrue(browser.loot.kept.isEmpty)
     }
 
+    func testReplacingAFileStillDownloadingSavesBesideIt() async throws {
+        let tab = try await openFixturePage()
+        let entry = try await startDownload("/range.bin", in: tab)
+        try await waitUntil { entry.completedBytes >= 64 * 1024 && entry.destination != nil }
+        let destination = try XCTUnwrap(entry.destination)
+
+        let chosen = browser.clearing(destination)
+
+        XCTAssertEqual(chosen.lastPathComponent, "fixture 2.bin")
+        XCTAssertEqual(chosen.deletingLastPathComponent().path, destination.deletingLastPathComponent().path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path), "the running download's file was moved")
+
+        // Told to go on, before WebKit has handed the download back.
+        browser.pauseDownload(entry)
+        try await waitUntil { entry.state == .paused }
+        browser.resumeDownload(entry)
+        XCTAssertEqual(entry.state, .resuming)
+        XCTAssertEqual(browser.clearing(destination).lastPathComponent, "fixture 2.bin")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path), "the resuming download's file was moved")
+    }
+
     func testRemovingPausedDownloadPreservesAReplacementFile() async throws {
         let tab = try await openFixturePage()
         let entry = try await startDownload("/range.bin", in: tab)
