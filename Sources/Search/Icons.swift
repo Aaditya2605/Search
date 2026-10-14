@@ -84,7 +84,15 @@ final class Favicons {
         // thousand of them each time it drew. One that arrives later goes
         // into `memory`, which is asked first.
         if absent.contains(key) { return nil }
-        guard let image = NSImage(contentsOf: Favicons.file(key)) else {
+        let file = Favicons.file(key)
+        guard let image = NSImage(contentsOf: file) else {
+            absent.insert(key)
+            return nil
+        }
+        // A clear square left by an earlier draw is not an icon. Drop it, so
+        // the next look at this host fetches again instead of wearing it.
+        guard Favicons.inked(image) else {
+            try? FileManager.default.removeItem(at: file)
             absent.insert(key)
             return nil
         }
@@ -191,56 +199,102 @@ final class Favicons {
     /// The kinds of picture a site's icon may be. Anything else a site sends
     /// — a PDF, a TIFF, an icns, PostScript — isn't opened at all: every
     /// kind is one more decoder a site can reach in this process.
-    private static let kinds: Set<String> = [
+    nonisolated private static let kinds: Set<String> = [
         "public.png", "com.microsoft.ico", "public.jpeg", "com.compuserve.gif", "org.webmproject.webp", "com.microsoft.bmp",
     ]
 
     /// Decoded and drawn into a square off the main thread — an .ico can hold
-    /// a dozen sizes and take a moment to unpack. Only the kinds above, no
-    /// larger than 4096 pixels a side, and decoded straight to the small size
-    /// a tab needs.
+    /// a dozen sizes and take a moment to unpack.
+    ///
+    /// Drawn with Core Graphics, not `NSImage.lockFocus`. That call is AppKit
+    /// drawing, and off the main thread it comes back clear for the icons
+    /// that are a Windows icon file — Apple's, which is what a tab on Safari
+    /// wears. The clear square was then kept, so the tab stayed blank for a
+    /// week. A result with no ink is refused, and the next candidate tried.
     private static func square(_ data: Data) async -> NSImage? {
         await Task.detached(priority: .utility) { () -> NSImage? in
-            guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
-                  let kind = CGImageSourceGetType(source) as String?, Favicons.kinds.contains(kind)
-            else { return nil }
-            // The frame nearest 64 pixels from above, for an .ico of many.
-            var best = 0, bestSide = 0
-            for index in 0..<min(CGImageSourceGetCount(source), 32) {
-                let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
-                let w = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
-                let h = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
-                guard w > 0, h > 0, w <= 4096, h <= 4096 else { continue }
-                let side = max(w, h)
-                if bestSide == 0 || (side >= 64 && (bestSide < 64 || side < bestSide)) || (bestSide < 64 && side > bestSide) {
-                    best = index
-                    bestSide = side
-                }
-            }
-            guard bestSide > 0,
-                  let decoded = CGImageSourceCreateThumbnailAtIndex(source, best, [
-                      kCGImageSourceCreateThumbnailFromImageAlways: true,
-                      kCGImageSourceThumbnailMaxPixelSize: 128,
-                      kCGImageSourceCreateThumbnailWithTransform: true,
-                  ] as CFDictionary)
-            else { return nil }
-            let image = NSImage(cgImage: decoded, size: NSSize(width: decoded.width, height: decoded.height))
-            let side: CGFloat = 64
-            let out = NSImage(size: NSSize(width: side, height: side))
-            out.lockFocus()
-            NSGraphicsContext.current?.imageInterpolation = .high
-            let scale = min(side / image.size.width, side / image.size.height)
-            let w = image.size.width * scale
-            let h = image.size.height * scale
-            image.draw(
-                in: NSRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h),
-                from: .zero,
-                operation: .sourceOver,
-                fraction: 1
-            )
-            out.unlockFocus()
-            return out
+            Favicons.raster(data)
         }.value
+    }
+
+    /// The frame nearest 64 pixels from above, fitted into 64 points. Only
+    /// the kinds above, no larger than 4096 pixels a side, and decoded
+    /// straight to the small size a tab needs. Nothing, when the picture
+    /// has no ink.
+    nonisolated private static func raster(_ data: Data) -> NSImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let kind = CGImageSourceGetType(source) as String?, Favicons.kinds.contains(kind)
+        else { return nil }
+        var best = 0, bestSide = 0
+        for index in 0..<min(CGImageSourceGetCount(source), 32) {
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
+            let w = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
+            let h = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
+            guard w > 0, h > 0, w <= 4096, h <= 4096 else { continue }
+            let side = max(w, h)
+            if bestSide == 0 || (side >= 64 && (bestSide < 64 || side < bestSide)) || (bestSide < 64 && side > bestSide) {
+                best = index
+                bestSide = side
+            }
+        }
+        guard bestSide > 0,
+              let frame = CGImageSourceCreateThumbnailAtIndex(source, best, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 128,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+              ] as CFDictionary),
+              frame.width > 0, frame.height > 0
+        else { return nil }
+
+        // 128 pixels in 64 points: sharp on a Retina screen.
+        let side = 128
+        guard let ctx = CGContext(
+            data: nil, width: side, height: side,
+            bitsPerComponent: 8, bytesPerRow: side * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.interpolationQuality = .high
+        let scale = min(CGFloat(side) / CGFloat(frame.width), CGFloat(side) / CGFloat(frame.height))
+        let w = CGFloat(frame.width) * scale
+        let h = CGFloat(frame.height) * scale
+        ctx.draw(frame, in: CGRect(x: (CGFloat(side) - w) / 2, y: (CGFloat(side) - h) / 2, width: w, height: h))
+        guard let drawn = ctx.makeImage(), Favicons.inked(drawn) else { return nil }
+        return NSImage(cgImage: drawn, size: NSSize(width: 64, height: 64))
+    }
+
+    /// Whether a decoded picture has any ink. A clear square is what a failed
+    /// draw looks like, and it must not be kept in place of a logo.
+    nonisolated private static func inked(_ image: CGImage) -> Bool {
+        let w = image.width
+        let h = image.height
+        guard w > 0, h > 0 else { return false }
+        let row = w * 4
+        var buf = [UInt8](repeating: 0, count: row * h)
+        let drawn = buf.withUnsafeMutableBytes { raw -> Bool in
+            guard let ctx = CGContext(
+                data: raw.baseAddress, width: w, height: h,
+                bitsPerComponent: 8, bytesPerRow: row,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drawn else { return false }
+        let step = max(1, (w * h) / 2048)
+        var index = 0
+        let total = w * h
+        while index < total {
+            if buf[index * 4 + 3] > 24 { return true }
+            index += step
+        }
+        return false
+    }
+
+    private static func inked(_ image: NSImage) -> Bool {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return false }
+        return inked(cg)
     }
 
     private static func keep(_ image: NSImage, for key: String) {
@@ -306,6 +360,9 @@ final class Favicons {
         var l = links[i];
         var rel = (l.getAttribute('rel') || '').toLowerCase();
         if (rel.indexOf('icon') < 0) continue;
+        // Safari's pinned-tab mask: one flat colour, meant to be dyed. As a
+        // picture it is a black shape, or nothing at all.
+        if (rel.indexOf('mask') >= 0) continue;
         out.push({
           href: l.href,
           rel: rel,
