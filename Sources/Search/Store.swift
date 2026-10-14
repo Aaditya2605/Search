@@ -98,8 +98,14 @@ enum Store {
     /// differ from stores made by identifier in how long extension workers
     /// are let live.
     static var ownContainer: Bool {
-        (Bundle.main.bundleIdentifier ?? "") != "com.officecommun.search"
+        !["com.officecommun.search", "com.huetic.search"].contains(Bundle.main.bundleIdentifier ?? "")
     }
+
+    /// This Mac's own build (build.sh with .local-name), installed beside
+    /// the released app: its own folder, so the two never write each
+    /// other's session. A test run of it still gets a test store, not its
+    /// real one (see ownContainer).
+    static let local = Bundle.main.bundleIdentifier == "com.huetic.search"
 
     /// The fixed identifiers of a test world's WebKit stores: 1 for websites,
     /// 2 for extensions. The test world's are 5E4C0000-0000-4000-8000-00000000000k,
@@ -123,7 +129,7 @@ enum Store {
     static let folder: URL = {
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let home = support.appendingPathComponent(world.map { "Search (\($0))" } ?? "Search", isDirectory: true)
+        let home = support.appendingPathComponent(world.map { "Search (\($0))" } ?? (local ? "Search (local)" : "Search"), isDirectory: true)
         if !testing {
             let old = support.appendingPathComponent("Office Browser", isDirectory: true)
             let files = FileManager.default
