@@ -109,6 +109,12 @@ struct TabBar: View {
                                 .onAppear { reveal(reader, in: geo.size.width) }
                                 .onChange(of: overflowing(in: geo.size.width)) { _, _ in reveal(reader, in: geo.size.width) }
                                 .onChange(of: browser.activeID) { _, _ in reveal(reader, in: geo.size.width, gliding: true) }
+                                .onChange(of: browser.editingTab) { _, id in
+                                    if id != nil { follow(reader, in: geo.size.width, until: CACurrentMediaTime() + 0.6) }
+                                }
+                                .onChange(of: browser.tabDraft) { _, _ in
+                                    if browser.editingTab != nil { reveal(reader, in: geo.size.width) }
+                                }
                             }
                                 .offset(y: browser.spaceSwipe)
                         }
@@ -243,14 +249,12 @@ struct TabBar: View {
     /// Brings the tab you are on into view once the run scrolls: at once
     /// when the window first shows it, on the strip's spring when you pick
     /// another. A turn of the run loop later, so the run has been laid out.
+    /// A tab being edited comes first, the whole of the field it grows into:
+    /// the run scrolled for its old width kept the end of the address past
+    /// the row's edge.
     private func reveal(_ reader: ScrollViewProxy, in strip: CGFloat, gliding: Bool = false) {
-        guard overflowing(in: strip), let activeID = browser.activeID else { return }
-        let id: Tab.ID
-        if browser.prefs.splitView, let active = browser.tabs.first(where: { $0.id == activeID }) {
-            id = browser.split(for: active)?.left ?? activeID
-        } else {
-            id = activeID
-        }
+        guard overflowing(in: strip), let shown = browser.editingTab ?? browser.activeID else { return }
+        let id = pill(shown)
         DispatchQueue.main.async {
             if gliding {
                 withAnimation(Motion.glide) { reader.scrollTo(id) }
@@ -258,6 +262,25 @@ struct TabBar: View {
                 reader.scrollTo(id)
             }
         }
+    }
+
+    /// The field a tab grows into, kept whole as it grows, by scrolling the
+    /// run every frame until the glide has settled: the tabs before it go
+    /// out to the left, and its end stays at the row's edge the whole way.
+    /// One scroll at the start found the run still about its old width and
+    /// stopped there, leaving the end of the address past the edge.
+    private func follow(_ reader: ScrollViewProxy, in strip: CGFloat, until end: CFTimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 120) {
+            guard let id = browser.editingTab, CACurrentMediaTime() < end else { return }
+            if overflowing(in: strip) { reader.scrollTo(pill(id)) }
+            follow(reader, in: strip, until: end)
+        }
+    }
+
+    /// The pill a tab is drawn in: a pair in Split View is one, its left tab's.
+    private func pill(_ id: Tab.ID) -> Tab.ID {
+        guard browser.prefs.splitView, let tab = browser.tabs.first(where: { $0.id == id }) else { return id }
+        return browser.split(for: tab)?.left ?? id
     }
 
     /// `each`: every loose tab's width (see `width(in:)`), worked out once
@@ -353,7 +376,10 @@ struct TabBar: View {
         if let id = browser.editingTab, let tab = browser.tabs.first(where: { $0.id == id }) {
             let splitWidth = browser.prefs.splitView ? browser.split(for: tab).map { _ in splitItemWidth(base: each) } : nil
             let oldWidth = splitWidth ?? (tab.pin != nil ? Metrics.pinWidth : each)
-            total += min(340, strip - lights - leading - 12) - oldWidth
+            let room = strip - lights - leading - 12
+            let grown = splitWidth == nil
+                ? TabAddressField.width(for: browser.tabDraft, tab: oldWidth, room: room) : min(340, room)
+            total += grown - oldWidth
         }
         return total
     }
@@ -507,8 +533,8 @@ private struct TabPill: View {
     /// A pinned tab is a square, an edited one is a field, everything else is
     /// its share of what is left.
     private var span: CGFloat {
-        if editing { return min(340, room) }
-        return pinned ? Metrics.pinWidth : width
+        let own = tab.pin != nil ? Metrics.pinWidth : width
+        return editing ? TabAddressField.width(for: browser.tabDraft, tab: own, room: room) : own
     }
 
     var body: some View {
@@ -612,10 +638,14 @@ private struct TabPill: View {
     }
 
     private var titled: some View {
-        HStack(spacing: 6) {
+        // Editing, the pill is the field and its margins alone: the gaps
+        // around the spacer and the empty cross would leave more room after
+        // the address than before it.
+        HStack(spacing: editing ? 0 : 6) {
             if editing {
                 TabAddressField(browser: browser)
                     .frame(height: 16)
+                    .layoutPriority(1)
             } else {
                 if prefs.glyph == .icons, !tab.isBlank {
                     Mark(icon: tab.icon, letter: tab.monogram, size: 15)
@@ -646,7 +676,7 @@ private struct TabPill: View {
                     .foregroundStyle(colour)
             }
 
-            Spacer(minLength: 2)
+            Spacer(minLength: editing ? 0 : 2)
 
             // The speaker, which can be pressed, is at the end of the pill on
             // its own, and one place in under the pointer, beside the cross
@@ -880,6 +910,17 @@ struct TabAddressField: NSViewRepresentable {
         let natural = field.intrinsicContentSize
         guard let width = proposal.width, width.isFinite else { return nil }
         return CGSize(width: max(0, width), height: proposal.height ?? natural.height)
+    }
+
+    /// The width a tab takes while its address is edited: as wide as the
+    /// address, so it grows out of the tab only as far as the text needs,
+    /// and with what is typed — never narrower than the tab, never wider
+    /// than 340, past which the text scrolls. 22 is the pill's margins, 11
+    /// a side; the field's own inset is too small to count, and the caret
+    /// at the end of the address still shows.
+    static func width(for draft: String, tab: CGFloat, room: CGFloat) -> CGFloat {
+        let text = (draft as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12.5)]).width
+        return min(340, room, max(tab, ceil(text) + 22))
     }
 
     func updateNSView(_ field: NSTextField, context: Context) {
